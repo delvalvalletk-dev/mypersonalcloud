@@ -21,7 +21,11 @@ export default defineNuxtConfig({
     {
       path: "~/components/recents",
       pathPrefix: false
-    },    
+    }, 
+    {
+      path: "~/components/trashbin",
+      pathPrefix: false
+    },   
     "~/components/"
   ],
 

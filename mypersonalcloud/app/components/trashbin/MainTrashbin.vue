@@ -1,10 +1,11 @@
+<script setup>
+  
+</script>
+
 <template>
-  <div class="flex flex-col gap-6">
-    <TrashHeader />
-    <TrashNotice />
+  <div class="flex flex-col">
+    <TrashbinHeader @empty="askEmptyTrash"/>
+		<TrashbinNotice />
 
-    <TrashTable/>
-
-    <TrashConfirmDialog/>
   </div>
 </template>
