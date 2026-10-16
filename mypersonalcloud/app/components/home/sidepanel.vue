@@ -10,19 +10,21 @@ type Section = 'files' | 'recent' | 'shared' | 'trash' | 'settings'
 const activeSection = ref<Section>('files')
 
 const sections: {
+  route: string
   label: string
   icon: string
   value: Section
 }[] = [
-  { label: 'Mes fichiers', icon: 'i-lucide-folder', value: 'files' },
-  { label: 'Récents', icon: 'i-lucide-clock', value: 'recent' },
-  { label: 'Partagés', icon: 'i-lucide-users', value: 'shared' },
-  { label: 'Corbeille', icon: 'i-lucide-trash-2', value: 'trash' },
-  { label: 'Paramètres', icon: 'i-lucide-settings', value: 'settings' }
+  { route : "/", label: 'Mes fichiers', icon: 'i-lucide-folder', value: 'files' },
+  { route : "/recents", label: 'Récents', icon: 'i-lucide-clock', value: 'recent' },
+  { route : "/partages", label: 'Partagés', icon: 'i-lucide-users', value: 'shared' },
+  { route : "/corbeille", label: 'Corbeille', icon: 'i-lucide-trash-2', value: 'trash' },
+  { route : "/parametres", label: 'Paramètres', icon: 'i-lucide-settings', value: 'settings' }
 ]
 
 const items = computed<NavigationMenuItem[]>(() =>
   sections.map(section => ({
+    to: section.route,
     label: section.label,
     icon: section.icon,
     active: activeSection.value === section.value,
