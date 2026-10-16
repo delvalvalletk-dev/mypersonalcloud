@@ -49,11 +49,7 @@ const columns: TableColumn<ShareItem>[] = [
   	    <UTable
   	      :data="items"
   	      :columns="columns"
-  	      :empty="{
-  	        icon: 'i-lucide-folder-open',
-  	        label: 'Aucun élément partagé',
-  	        description: 'Les fichiers et dossiers que vous partagez apparaîtront ici.'
-  	      }"
+  	      empty="Aucun élément partagé"
   	    >
   	      <template #name-cell="{ row }">
   	        <div class="flex min-w-0 items-center gap-3">
@@ -70,10 +66,13 @@ const columns: TableColumn<ShareItem>[] = [
   	              class="size-5"
   	            />
   	          </div>
-
-  	          <span class="truncate font-medium text-default">
-  	            {{ row.original.name }}
-  	          </span>
+							<NuxtLink
+  							:to="`/partages/${row.original.id}`"
+  							class="truncate font-medium text-default hover:text-primary transition-colors"
+							>
+  							{{ row.original.name }}
+							</NuxtLink>
+							
   	        </div>
   	      </template>
 
