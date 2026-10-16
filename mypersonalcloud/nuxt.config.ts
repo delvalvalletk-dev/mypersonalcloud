@@ -7,30 +7,9 @@ export default defineNuxtConfig({
 
   components: [
     {
-      path: "~/components/fundamentals",
+      path: '~/components',
       pathPrefix: false
-    },
-    {
-      path: "~/components/home",
-      pathPrefix: false
-    },
-    {
-      path: "~/components/parameters",
-      pathPrefix: false
-    },
-    {
-      path: "~/components/recents",
-      pathPrefix: false
-    }, 
-    {
-      path: "~/components/trashbin",
-      pathPrefix: false
-    },   
-    {
-      path: "~/components/shares",
-      pathPrefix: false
-    }, 
-    "~/components/"
+    }
   ],
 
   devtools: {
