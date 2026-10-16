@@ -26,6 +26,10 @@ export default defineNuxtConfig({
       path: "~/components/trashbin",
       pathPrefix: false
     },   
+    {
+      path: "~/components/shares",
+      pathPrefix: false
+    }, 
     "~/components/"
   ],
 

@@ -1,3 +1,3 @@
 <template>
-  <SharesMain />
+  <MainShares />
 </template>
