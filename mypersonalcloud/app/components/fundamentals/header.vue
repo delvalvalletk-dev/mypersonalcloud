@@ -25,7 +25,7 @@
         color="neutral"
         variant="ghost"
         aria-label="Paramètres"
-        to="/parameters"
+        to="/parametres"
       />
     </div>
   </header>
