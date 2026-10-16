@@ -1,0 +1,3 @@
+<template>
+  <ParameterMain />
+</template>
