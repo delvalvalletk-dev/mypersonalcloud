@@ -1,25 +1,17 @@
-
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { NavigationMenuItem } from '@nuxt/ui'
 
 const open = defineModel<boolean>({ default: true })
 
-type Section = 'files' | 'recent' | 'shared' | 'trash' | 'settings'
+const route = useRoute()
 
-const activeSection = ref<Section>('files')
-
-const sections: {
-  route: string
-  label: string
-  icon: string
-  value: Section
-}[] = [
-  { route : "/", label: 'Mes fichiers', icon: 'i-lucide-folder', value: 'files' },
-  { route : "/recents", label: 'Récents', icon: 'i-lucide-clock', value: 'recent' },
-  { route : "/partages", label: 'Partagés', icon: 'i-lucide-users', value: 'shared' },
-  { route : "/corbeille", label: 'Corbeille', icon: 'i-lucide-trash-2', value: 'trash' },
-  { route : "/parametres", label: 'Paramètres', icon: 'i-lucide-settings', value: 'settings' }
+const sections = [
+  { route: '/', label: 'Mes fichiers', icon: 'i-lucide-folder' },
+  { route: '/recents', label: 'Récents', icon: 'i-lucide-clock' },
+  { route: '/partages', label: 'Partagés', icon: 'i-lucide-users' },
+  { route: '/corbeille', label: 'Corbeille', icon: 'i-lucide-trash-2' },
+  { route: '/parametres', label: 'Paramètres', icon: 'i-lucide-settings' }
 ]
 
 const items = computed<NavigationMenuItem[]>(() =>
@@ -27,23 +19,13 @@ const items = computed<NavigationMenuItem[]>(() =>
     to: section.route,
     label: section.label,
     icon: section.icon,
-    active: activeSection.value === section.value,
-    onSelect: () => {
-      activeSection.value = section.value
-    }
+    active: route.path === section.route
   }))
-)
-
-const pageTitle = computed(() =>
-  sections.find(section => section.value === activeSection.value)?.label
-  ?? 'Mes fichiers'
 )
 </script>
 
 <template>
   <div class="flex min-h-0 flex-1">
-    
-    <!-- Composant SideBar de nuxtUI -->
     <USidebar
       v-model:open="open"
       collapsible="icon"
@@ -55,11 +37,8 @@ const pageTitle = computed(() =>
         body: 'px-2 py-3'
       }"
     >
-      <!-- Contenu de la SideBar - Header -->
       <template #header>
         <div class="flex w-full min-w-0 items-center gap-2">
-          
-          <!-- Au clic, open prend la valeur opposée et l'icone change -->
           <UButton
             :icon="open ? 'i-lucide-cloud' : 'i-lucide-cloudy'"
             color="neutral"
@@ -75,7 +54,6 @@ const pageTitle = computed(() =>
             @click="open = !open"
           />
 
-          <!-- Le titre d'affiche selon la valeur de open -->
           <span
             v-if="open"
             class="min-w-0 flex-1 truncate text-base font-bold tracking-tight"
@@ -85,7 +63,6 @@ const pageTitle = computed(() =>
         </div>
       </template>
 
-      <!-- Contenu de la SideBar - Menu de navigation -->
       <UNavigationMenu
         :items="items"
         orientation="vertical"
@@ -98,49 +75,14 @@ const pageTitle = computed(() =>
       />
     </USidebar>
 
-    <!-- Contenu principal - futur -->
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
       <main class="min-h-0 flex-1 overflow-auto p-4">
-        
-          <Header />
-          <template v-if="activeSection === 'files'">
-              <slot />
-          </template>
-        
-          <div
-              v-else-if="activeSection === 'recent'"
-              class="rounded-xl border border-default p-6 text-muted"
-          >
-              <UIcon name="i-lucide-clock" class="mb-3 size-8" />
-              <p>Les fichiers récemment consultés apparaîtront ici.</p>
-          </div>
-        
-          <div
-              v-else-if="activeSection === 'shared'"
-              class="rounded-xl border border-default p-6 text-muted"
-          >
-              <UIcon name="i-lucide-users" class="mb-3 size-8" />
-              <p>Les fichiers partagés apparaîtront ici.</p>
-          </div>
-        
-          <div
-              v-else-if="activeSection === 'trash'"
-              class="rounded-xl border border-default p-6 text-muted"
-          >
-              <UIcon name="i-lucide-trash-2" class="mb-3 size-8" />
-              <p>Les fichiers supprimés apparaîtront ici.</p>
-          </div>
-        
-          <div
-              v-else-if="activeSection === 'settings'"
-              class="rounded-xl border border-default p-6 text-muted"
-          >
-              <UIcon name="i-lucide-settings" class="mb-3 size-8" />
-              <p>Les paramètres de ton espace seront disponibles ici.</p>
-          </div>
-          <Footer />
-      </main>
+        <Header />
 
+        <slot />
+
+        <Footer />
+      </main>
     </div>
   </div>
 </template>

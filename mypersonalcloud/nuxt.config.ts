@@ -18,6 +18,10 @@ export default defineNuxtConfig({
       path: "~/components/parameters",
       pathPrefix: false
     },
+    {
+      path: "~/components/recents",
+      pathPrefix: false
+    },    
     "~/components/"
   ],
 

@@ -1,0 +1,3 @@
+<template>
+  <RecentMain />
+</template>
