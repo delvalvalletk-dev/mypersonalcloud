@@ -7,5 +7,11 @@
     <TrashbinHeader @empty="askEmptyTrash"/>
 		<TrashbinNotice />
 
+    <TrashbinTableView
+      :items="items"
+      @restore="restoreItem"
+      @delete="askDelete"
+    />
+		
   </div>
 </template>
