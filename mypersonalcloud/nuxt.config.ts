@@ -2,8 +2,18 @@
 export default defineNuxtConfig({
   modules: [
     '@nuxt/eslint',
-    '@nuxt/ui'
+    '@nuxt/ui',
+    '@nuxtjs/supabase'
   ],
+
+  supabase: {
+    redirect: true,
+    redirectOptions: {
+      login: '/connexion',
+      callback: '/confirmation',
+      exclude: ['connexion', 'inscription','confirmation']
+    }
+  },
 
   components: [
     {
