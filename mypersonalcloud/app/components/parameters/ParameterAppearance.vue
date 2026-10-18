@@ -1,43 +1,40 @@
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import ParameterCard from './ParameterCard.vue'
+import { computed } from 'vue'
 
-// Thème sélectionné
 type Theme = 'light' | 'dark' | 'system'
 
-const selectedTheme = ref<Theme>('system')
+const colorMode = useColorMode()
 
-// Options disponibles
+const selectedTheme = computed<Theme>({
+  get: () => colorMode.preference as Theme,
+  set: (theme) => {
+    colorMode.preference = theme
+  }
+})
+
 const themes = [
   {
     value: 'light' as const,
     label: 'Clair',
     description: 'Une interface lumineuse.',
-    icon: 'i-lucide-sun',
+    icon: 'i-lucide-sun'
   },
   {
     value: 'dark' as const,
     label: 'Sombre',
     description: 'Une interface sombre.',
-    icon: 'i-lucide-moon',
+    icon: 'i-lucide-moon'
   },
   {
     value: 'system' as const,
     label: 'Système',
-    description: 'Préférences de votre appareil.',
-    icon: 'i-lucide-monitor',
-  },
+    description: 'Suit les préférences de votre appareil.',
+    icon: 'i-lucide-monitor'
+  }
 ]
-
-// Applique le thème sélectionné
-function selectTheme(theme: Theme) {
-  selectedTheme.value = theme
-
-  // TODO : appliquer le thème à l'interface.
-  // La persistance sera ajoutée ultérieurement.
-}
 </script>
+
 
 <template>
   <ParameterCard title="Apparence">
@@ -63,7 +60,7 @@ function selectTheme(theme: Theme) {
               : 'border-default hover:bg-elevated'
           "
           :aria-pressed="selectedTheme === theme.value"
-          @click="selectTheme(theme.value)"
+          @click="selectedTheme = theme.value"
         >
           <UIcon
             :name="theme.icon"
