@@ -1,48 +1,97 @@
-```vue
+
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { TableColumn } from '@nuxt/ui'
+import type { StoredFile } from '~/composables/useFiles'
+import type { StoredFolder } from '~/composables/useFolders'
+
+const props = defineProps<{
+  search: string
+  files: StoredFile[]
+  folders: StoredFolder[]
+}>()
 
 type FileItem = {
-  id: number
+  id: string
   name: string
   updatedAt: string
   updatedTimestamp: number
   size: string
   sizeBytes: number
   type: string
-  parentId: number | null
+  parentId: string | null
+  storagePath?: string
 }
 
-// Données de test organisées en arborescence
-const files = ref<FileItem[]>([
-  { id: 1, name: 'Documents', updatedAt: 'Hier', updatedTimestamp: 20261010, size: '-', sizeBytes: 0, type: 'folder', parentId: null },
-  { id: 2, name: 'Photos', updatedAt: '12 sept.', updatedTimestamp: 20260912, size: '-', sizeBytes: 0, type: 'folder', parentId: null },
-  { id: 3, name: 'Projets', updatedAt: '3 oct.', updatedTimestamp: 20261003, size: '-', sizeBytes: 0, type: 'folder', parentId: null },
-  { id: 4, name: 'Sauvegardes', updatedAt: '28 août', updatedTimestamp: 20260828, size: '-', sizeBytes: 0, type: 'folder', parentId: null },
-  { id: 5, name: 'CV-2026.pdf', updatedAt: '5 oct.', updatedTimestamp: 20261005, size: '212 Ko', sizeBytes: 212 * 1024, type: 'pdf', parentId: null },
-  { id: 6, name: 'budget.xlsx', updatedAt: '1 oct.', updatedTimestamp: 20261001, size: '48 Ko', sizeBytes: 48 * 1024, type: 'spreadsheet', parentId: null },
-  { id: 7, name: 'vacances.mp4', updatedAt: '14 août', updatedTimestamp: 20260814, size: '1,2 Go', sizeBytes: 1.2 * 1024 ** 3, type: 'video', parentId: null },
+function formatDate(date: string): string {
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'medium',
+  }).format(new Date(date))
+}
 
-  // Contenu de démonstration du dossier Documents
-  { id: 8, name: 'Cours', updatedAt: 'Hier', updatedTimestamp: 20261010, size: '-', sizeBytes: 0, type: 'folder', parentId: 1 },
-  { id: 9, name: 'Rapport.pdf', updatedAt: 'Aujourd’hui', updatedTimestamp: 20261011, size: '350 Ko', sizeBytes: 350 * 1024, type: 'pdf', parentId: 1 },
-  { id: 10, name: 'Notes.txt', updatedAt: '9 oct.', updatedTimestamp: 20261009, size: '8 Ko', sizeBytes: 8 * 1024, type: 'file', parentId: 1 },
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} o`
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Ko`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Mo`
 
-  // Contenu du dossier Photos
-  { id: 11, name: 'Anniversaire', updatedAt: '10 sept.', updatedTimestamp: 20260910, size: '-', sizeBytes: 0, type: 'folder', parentId: 2 },
-  { id: 12, name: 'photo.jpg', updatedAt: '12 sept.', updatedTimestamp: 20260912, size: '2,4 Mo', sizeBytes: 2.4 * 1024 ** 2, type: 'image', parentId: 2 }
+  return `${(bytes / 1024 ** 3).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Go`
+}
+
+function getFileType(name: string): string {
+  const extension = name.split('.').pop()?.toLowerCase()
+
+  const types: Record<string, string> = {
+    pdf: 'pdf',
+    xls: 'spreadsheet',
+    xlsx: 'spreadsheet',
+    ods: 'spreadsheet',
+    csv: 'spreadsheet',
+    mp4: 'video',
+    webm: 'video',
+    mov: 'video',
+    jpg: 'image',
+    jpeg: 'image',
+    png: 'image',
+    gif: 'image',
+    webp: 'image',
+  }
+
+  return extension ? types[extension] ?? 'file' : 'file'
+}
+
+const files = computed<FileItem[]>(() => [
+  ...props.folders.map(folder => ({
+    id: folder.id,
+    name: folder.name,
+    updatedAt: formatDate(folder.created_at),
+    updatedTimestamp: new Date(folder.created_at).getTime(),
+    size: '-',
+    sizeBytes: 0,
+    type: 'folder',
+    parentId: folder.parent_id,
+  })),
+  ...props.files.map(file => ({
+    id: file.id,
+    name: file.name,
+    updatedAt: formatDate(file.created_at),
+    updatedTimestamp: new Date(file.created_at).getTime(),
+    size: formatSize(Number(file.size_bytes)),
+    sizeBytes: Number(file.size_bytes),
+    type: getFileType(file.name),
+    parentId: file.folder_id,
+    storagePath: file.storage_path,
+  })),
 ])
 
 const columns: TableColumn<FileItem>[] = [
   { accessorKey: 'name', header: 'Nom' },
   { accessorKey: 'updatedAt', header: 'Modifié' },
-  { accessorKey: 'size', header: 'Taille' }
+  { accessorKey: 'size', header: 'Taille' },
 ]
 
-// Navigation entre dossiers
-const currentFolderId = ref<number | null>(null)
-const folderHistory = ref<{ id: number | null; name: string }[]>([])
+// Navigation dans l'arborescence
+const currentFolderId = ref<string | null>(null)
+const folderHistory = ref<{ id: string | null; name: string }[]>([])
 
 const currentFolderName = computed(() => {
   if (currentFolderId.value === null) return 'Mes fichiers'
@@ -51,9 +100,17 @@ const currentFolderName = computed(() => {
     ?? 'Dossier'
 })
 
-const currentFiles = computed(() =>
-  files.value.filter(file => file.parentId === currentFolderId.value)
-)
+const currentFiles = computed(() => {
+  const query = props.search.trim().toLocaleLowerCase('fr')
+
+  return files.value.filter(file => {
+    const isInCurrentFolder = file.parentId === currentFolderId.value
+    const matchesSearch = !query
+      || file.name.toLocaleLowerCase('fr').includes(query)
+
+    return isInCurrentFolder && matchesSearch
+  })
+})
 
 // Tri
 type SortKey = 'name' | 'updatedTimestamp' | 'sizeBytes'
@@ -62,7 +119,6 @@ const sortDirection = ref<'asc' | 'desc'>('asc')
 
 const sortedFiles = computed(() => {
   return [...currentFiles.value].sort((a, b) => {
-    // Afficher les dossiers avant les fichiers
     if (a.type === 'folder' && b.type !== 'folder') return -1
     if (a.type !== 'folder' && b.type === 'folder') return 1
 
@@ -91,7 +147,7 @@ function openFolder(folder: FileItem) {
 
   folderHistory.value.push({
     id: currentFolderId.value,
-    name: currentFolderName.value
+    name: currentFolderName.value,
   })
 
   currentFolderId.value = folder.id
@@ -112,7 +168,7 @@ function getFileIcon(type: string) {
     spreadsheet: 'i-lucide-file-spreadsheet',
     video: 'i-lucide-file-video',
     image: 'i-lucide-file-image',
-    file: 'i-lucide-file'
+    file: 'i-lucide-file',
   }
 
   return icons[type] ?? 'i-lucide-file'
@@ -250,4 +306,3 @@ function getSortIcon(key: SortKey) {
     </div>
   </div>
 </template>
-```

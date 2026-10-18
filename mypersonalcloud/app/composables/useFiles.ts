@@ -15,6 +15,27 @@ export function useFiles() {
   const supabase = useSupabaseClient<Database>()
   const { uploadFile, deleteFile } = useFileStorage()
 
+	async function getFiles(): Promise<StoredFile[]> {
+		const { data: authData, error: authError } =
+			await supabase.auth.getUser()
+	
+		if (authError || !authData.user) {
+			throw new Error('Vous devez être connecté pour consulter vos fichiers.')
+		}
+
+		const { data, error } = await supabase
+			.from('files')
+			.select('*')
+			.eq('user_id', authData.user.id)
+			.order('created_at', { ascending: false })
+
+		if (error) {
+			throw new Error(`Impossible de récupérer les fichiers : ${error.message}`)
+		}
+
+		return (data ?? []) as StoredFile[]
+	}
+
   async function uploadAndRegister(file: File): Promise<StoredFile> {
     // 1. Vérifier l'utilisateur connecté.
     const { data: authData, error: authError } =
@@ -64,5 +85,6 @@ export function useFiles() {
 
   return {
     uploadAndRegister,
+		getFiles
   }
 }
