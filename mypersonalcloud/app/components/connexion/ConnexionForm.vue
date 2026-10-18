@@ -1,7 +1,36 @@
 
 <script setup lang="ts">
-  const email = ref('')
-  const password = ref('')
+const email = ref('')
+const password = ref('')
+
+const supabase = useSupabaseClient()
+
+const errorMessage = ref('')
+const isLoading = ref(false)
+
+async function signIn() {
+  errorMessage.value = ''
+  isLoading.value = true
+
+  try {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.value,
+      password: password.value
+    })
+
+    if (error) {
+      errorMessage.value = 'Adresse e-mail ou mot de passe incorrect.'
+      return
+    }
+
+    await navigateTo('/')
+  } catch {
+    errorMessage.value =
+      'Une erreur inattendue est survenue. Veuillez réessayer.'
+  } finally {
+    isLoading.value = false
+  }
+}
 </script>
 
 <template>
