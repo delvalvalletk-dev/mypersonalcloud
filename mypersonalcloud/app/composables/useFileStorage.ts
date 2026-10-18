@@ -73,12 +73,14 @@ export function useFileStorage() {
   const supabase = useSupabaseClient()
   const user = useSupabaseUser()
 
-  function getUserId(): string {
-    if (!user.value) {
-      throw new Error('Vous devez être connecté.')
+  async function getUserId(): Promise<string> {
+    const { data, error } = await supabase.auth.getUser()
+  
+    if (error || !data.user) {
+      throw new Error('Vous devez être connecté pour effectuer cette action.')
     }
-
-    return user.value.id
+  
+    return data.user.id
   }
 
   function validateFile(file: File): void {
@@ -122,7 +124,7 @@ export function useFileStorage() {
   }
 
   async function uploadFile(file: File) {
-    const userId = getUserId()
+    const userId = await getUserId()
 
     validateFile(file)
 

@@ -1,24 +1,29 @@
 <!-- Composant Drag and Drop -->
 
+
 <script setup lang="ts">
 import { ref } from 'vue'
 
-// liste des fichiers
 const files = ref<File[]>([])
 const isDragging = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
+const isUploading = ref(false)
+const uploadErrors = ref<string[]>([])
+const successMessage = ref('')
+
+const { uploadAndRegister } = useFiles()
+const { validateFile } = useFileStorage()
 
 function openFilePicker() {
-  fileInput.value?.click()
+  if (!isUploading.value) {
+    fileInput.value?.click()
+  }
 }
 
 function addFiles(selectedFiles: FileList | null) {
-  if (!selectedFiles) return
+  if (!selectedFiles || isUploading.value) return
 
-  const newFiles = Array.from(selectedFiles)
-
-  // Évite les doublons de noms et de tailles
-  for (const file of newFiles) {
+  for (const file of Array.from(selectedFiles)) {
     const alreadyExists = files.value.some(
       existing =>
         existing.name === file.name &&
@@ -38,7 +43,66 @@ function handleDrop(event: DragEvent) {
 }
 
 function removeFile(index: number) {
+  if (isUploading.value) return
   files.value.splice(index, 1)
+}
+
+function clearFiles() {
+  if (isUploading.value) return
+  files.value = []
+  uploadErrors.value = []
+  successMessage.value = ''
+}
+
+
+async function uploadSelectedFiles() {
+  if (isUploading.value || files.value.length === 0) return
+
+  isUploading.value = true
+  uploadErrors.value = []
+  successMessage.value = ''
+
+  const successfulFiles: File[] = []
+  const errors: string[] = []
+
+  try {
+    for (const file of files.value) {
+      try {
+        validateFile(file)
+
+        const storedFile = await uploadAndRegister(file)
+
+        console.log('Fichier enregistré :', storedFile)
+        successfulFiles.push(file)
+      } catch (error: unknown) {
+        console.error(`Échec de l'upload de ${file.name}:`, error)
+
+        const message = error instanceof Error
+          ? error.message
+          : JSON.stringify(error)
+
+        errors.push(`${file.name} : ${message || 'Erreur inconnue'}`)
+      }
+    }
+
+    files.value = files.value.filter(
+      file => !successfulFiles.includes(file)
+    )
+
+    uploadErrors.value = errors
+
+    if (successfulFiles.length > 0) {
+      successMessage.value =
+        `${successfulFiles.length} fichier(s) envoyé(s) et enregistré(s) avec succès.`
+    }
+  } catch (error: unknown) {
+    console.error('Erreur inattendue pendant l’upload :', error)
+    uploadErrors.value.push(
+      error instanceof Error ? error.message : 'Erreur inattendue.'
+    )
+  } finally {
+    isUploading.value = false
+  }
 }
 
 function formatSize(size: number) {
@@ -51,6 +115,7 @@ function formatSize(size: number) {
   return `${(size / (1024 * 1024 * 1024)).toFixed(2)} Go`
 }
 </script>
+
 
 <template>
   <div class="flex flex-col gap-4">
@@ -160,15 +225,51 @@ function formatSize(size: number) {
         </li>
       </ul>
 
-      <div class="flex justify-end border-t border-default p-3">
+      <div class="flex flex-wrap justify-end gap-2 border-t border-default p-3">
         <UButton
           label="Tout effacer"
           color="neutral"
           variant="ghost"
           size="sm"
-          @click="files = []"
+          :disabled="isUploading"
+          @click="clearFiles"
+        />
+      
+        <UButton
+          :label="isUploading ? 'Envoi en cours…' : 'Envoyer les fichiers'"
+          :icon="isUploading ? 'i-lucide-loader-circle' : 'i-lucide-upload'"
+          :loading="isUploading"
+          :disabled="files.length === 0 || isUploading"
+          @click="uploadSelectedFiles"
         />
       </div>
     </div>
+
+    <!-- Résultat de l'upload -->
+    <UAlert
+      v-if="successMessage"
+      color="success"
+      variant="subtle"
+      title="Upload réussi"
+      :description="successMessage"
+      icon="i-lucide-check-circle"
+    />
+
+    <UAlert
+      v-if="uploadErrors.length > 0"
+      color="error"
+      variant="subtle"
+      title="Échec de l'envoi"
+      icon="i-lucide-alert-circle"
+    >
+      <template #description>
+        <ul class="list-disc space-y-1 pl-4">
+          <li v-for="(error, index) in uploadErrors" :key="index">
+            {{ error }}
+          </li>
+        </ul>
+      </template>
+    </UAlert>
+
   </div>
 </template>

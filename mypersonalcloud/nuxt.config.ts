@@ -12,7 +12,8 @@ export default defineNuxtConfig({
       login: '/connexion',
       callback: '/confirmation',
       exclude: ['/connexion', '/inscription','/confirmation']
-    }
+    },
+    types: './app/types/database.types.ts',
   },
 
   components: [
