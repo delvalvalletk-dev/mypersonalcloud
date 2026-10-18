@@ -2,35 +2,24 @@
 export default defineNuxtConfig({
   modules: [
     '@nuxt/eslint',
-    '@nuxt/ui'
+    '@nuxt/ui',
+    '@nuxtjs/supabase'
   ],
+
+  supabase: {
+    redirect: true,
+    redirectOptions: {
+      login: '/connexion',
+      callback: '/confirmation',
+      exclude: ['/connexion', '/inscription','/confirmation']
+    }
+  },
 
   components: [
     {
-      path: "~/components/fundamentals",
+      path: '~/components',
       pathPrefix: false
-    },
-    {
-      path: "~/components/home",
-      pathPrefix: false
-    },
-    {
-      path: "~/components/parameters",
-      pathPrefix: false
-    },
-    {
-      path: "~/components/recents",
-      pathPrefix: false
-    }, 
-    {
-      path: "~/components/trashbin",
-      pathPrefix: false
-    },   
-    {
-      path: "~/components/shares",
-      pathPrefix: false
-    }, 
-    "~/components/"
+    }
   ],
 
   devtools: {
