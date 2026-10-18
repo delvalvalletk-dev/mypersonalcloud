@@ -34,7 +34,7 @@ async function signIn() {
 </script>
 
 <template>
-  <form class="flex flex-col gap-5" @submit.prevent>
+  <form class="flex flex-col gap-5" @submit.prevent="signIn">
     <UFormField label="Adresse e-mail" name="email">
       <UInput
       v-model="email"
@@ -57,7 +57,20 @@ async function signIn() {
       />
     </UFormField>
 
-    <UButton type="submit" block>
+    <UAlert
+      v-if="errorMessage"
+      color="error"
+      variant="subtle"
+      title="Connexion impossible"
+      :description="errorMessage"
+    />
+
+    <UButton
+      type="submit"
+      block
+      :loading="isLoading"
+      :disabled="isLoading"
+    >
       Se connecter
     </UButton>
   </form>
