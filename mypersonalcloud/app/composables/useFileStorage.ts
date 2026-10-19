@@ -1,5 +1,5 @@
 
-const BUCKET = 'user-files'
+const BUCKET_NAME = 'user-files'
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 Mio
 
 const ALLOWED_EXTENSIONS = new Set([
@@ -70,8 +70,8 @@ const ALLOWED_MIME_TYPES = new Set([
 ])
 
 export function useFileStorage() {
+  
   const supabase = useSupabaseClient()
-  const user = useSupabaseUser()
 
   async function getUserId(): Promise<string> {
     const { data, error } = await supabase.auth.getUser()
@@ -133,7 +133,7 @@ export function useFileStorage() {
       file.type || 'application/octet-stream'
 
     const { data, error } = await supabase.storage
-      .from(BUCKET)
+      .from(BUCKET_NAME)
       .upload(path, file, {
         contentType,
         upsert: false,
@@ -151,15 +151,41 @@ export function useFileStorage() {
     }
   }
 
-  async function downloadFile(path: string) {
-    getUserId()
+  async function deleteFile(path: string): Promise<void> {
+    const userId = await getUserId()
 
-    const { data, error } = await supabase.storage
-      .from(BUCKET)
-      .download(path)
+    if (!path.startsWith(`${userId}/`)) {
+      throw new Error('Accès au fichier refusé.')
+    }
+
+    const { error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([path])
 
     if (error) {
       throw error
+    }
+  }
+
+ async function downloadFile(path: string): Promise<Blob> {
+    const { data: authData, error: authError } =
+      await supabase.auth.getUser()
+
+    if (authError || !authData.user) {
+      throw new Error('Vous devez être connecté pour accéder à ce fichier.')
+    }
+
+    // Vérification du chemin utilisateur
+    if (!path.startsWith(`${authData.user.id}/`)) {
+      throw new Error('Accès au fichier refusé.')
+    }
+
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .download(path)
+
+    if (error) {
+      throw new Error(`Impossible de charger le fichier : ${error.message}`)
     }
 
     return data
@@ -167,32 +193,30 @@ export function useFileStorage() {
 
   async function getSignedUrl(
     path: string,
-    expiresIn = 60
-  ) {
-    getUserId()
+    expiresIn = 60,
+  ): Promise<string> {
+    const { data: authData, error: authError } =
+      await supabase.auth.getUser()
+
+    if (authError || !authData.user) {
+      throw new Error('Vous devez être connecté pour accéder à ce fichier.')
+    }
+
+    if (!path.startsWith(`${authData.user.id}/`)) {
+      throw new Error('Accès au fichier refusé.')
+    }
 
     const { data, error } = await supabase.storage
-      .from(BUCKET)
+      .from(BUCKET_NAME)
       .createSignedUrl(path, expiresIn)
 
     if (error) {
-      throw error
+      throw new Error(`Impossible de générer le lien : ${error.message}`)
     }
 
     return data.signedUrl
   }
 
-  async function deleteFile(path: string) {
-    getUserId()
-
-    const { error } = await supabase.storage
-      .from(BUCKET)
-      .remove([path])
-
-    if (error) {
-      throw error
-    }
-  }
 
   return {
     uploadFile,
