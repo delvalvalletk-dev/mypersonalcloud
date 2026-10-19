@@ -32,36 +32,45 @@ export function useFolders() {
     return (data ?? []) as StoredFolder[]
   }
 
-  async function createFolder(name: string): Promise<StoredFolder> {
-    const trimmedName = name.trim()
 
+  async function createFolder(
+    name: string,
+    parentId: string | null = null,
+  ): Promise<StoredFolder> {
+    const trimmedName = name.trim()
+  
     if (!trimmedName) {
       throw new Error('Le nom du dossier ne peut pas être vide.')
     }
-
+  
     const { data: authData, error: authError } =
       await supabase.auth.getUser()
-
+  
     if (authError || !authData.user) {
-      throw new Error('Vous devez être connecté pour créer un dossier.')
+      throw new Error(
+        'Vous devez être connecté pour créer un dossier.',
+      )
     }
-
+  
     const { data, error } = await supabase
       .from('folders')
       .insert({
         user_id: authData.user.id,
         name: trimmedName,
-        parent_id: null,
+        parent_id: parentId,
       })
-      .select('*')
+      .select()
       .single()
-
+    
     if (error) {
-      throw new Error(`Impossible de créer le dossier : ${error.message}`)
+      throw new Error(
+        `Impossible de créer le dossier : ${error.message}`,
+      )
     }
-
+  
     return data as StoredFolder
   }
+
 
   return {
     getFolders,
