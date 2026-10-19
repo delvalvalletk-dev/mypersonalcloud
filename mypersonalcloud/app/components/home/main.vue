@@ -118,7 +118,10 @@ async function createFolder() {
 
     <!-- Téléversement -->
     <section aria-label="Ajouter des fichiers">
-      <DropZone @uploaded="loadItems" />
+      <DropZone
+        :folder-id="currentFolderId"
+        @uploaded="loadItems"
+      />
     </section>
 
     <!-- Recherche -->

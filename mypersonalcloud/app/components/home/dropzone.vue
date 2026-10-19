@@ -14,6 +14,10 @@ const successMessage = ref('')
 const { uploadAndRegister } = useFiles()
 const { validateFile } = useFileStorage()
 
+const props = defineProps<{
+  folderId: string | null
+}>()
+
 function openFilePicker() {
   if (!isUploading.value) {
     fileInput.value?.click()
@@ -70,7 +74,7 @@ async function uploadSelectedFiles() {
       try {
         validateFile(file)
 
-        const storedFile = await uploadAndRegister(file)
+        const storedFile = await uploadAndRegister(file, props.folderId)
 
         console.log('Fichier enregistré :', storedFile)
         successfulFiles.push(file)

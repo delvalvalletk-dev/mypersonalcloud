@@ -36,7 +36,10 @@ export function useFiles() {
 		return (data ?? []) as StoredFile[]
 	}
 
-  async function uploadAndRegister(file: File): Promise<StoredFile> {
+  async function uploadAndRegister(
+    file: File,
+    folderId: string | null = null,
+  ): Promise<StoredFile> {
     // 1. Vérifier l'utilisateur connecté.
     const { data: authData, error: authError } =
       await supabase.auth.getUser()
@@ -54,8 +57,8 @@ export function useFiles() {
     const { data, error } = await supabase
       .from('files')
       .insert({
-        user_id: userId,
-        folder_id: null,
+        user_id: userId,  
+        folder_id: folderId,
         name: uploadedFile.name,
         storage_path: uploadedFile.path,
         size_bytes: uploadedFile.size,
