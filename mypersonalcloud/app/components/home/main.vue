@@ -21,6 +21,8 @@ const loadError = ref('')
 const isCreatingFolder = ref(false)
 const createFolderError = ref('')
 
+const currentFolderId = ref<string | null>(null)
+
 const { getFiles } = useFiles()
 const { getFolders, createFolder: saveFolder } = useFolders()
 
@@ -65,7 +67,7 @@ async function createFolder() {
   createFolderError.value = ''
 
   try {
-    await saveFolder(name)
+    await saveFolder(name, currentFolderId.value)
 
     // Recharger les données depuis Supabase pour garder
     // le tableau synchronisé avec la base de données.
@@ -210,6 +212,7 @@ async function createFolder() {
         :search="search"
         :files="files"
         :folders="folders"
+        @folder-change="currentFolderId = $event"
       />
     </section>
 

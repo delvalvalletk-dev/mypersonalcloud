@@ -11,6 +11,10 @@ const props = defineProps<{
   folders: StoredFolder[]
 }>()
 
+const emit = defineEmits<{
+  'folder-change': [folderId: string | null]
+}>()
+
 type FileItem = {
   id: string
   name: string
@@ -151,6 +155,7 @@ function openFolder(folder: FileItem) {
   })
 
   currentFolderId.value = folder.id
+  emit('folder-change', currentFolderId.value)
 }
 
 function goBack() {
@@ -158,6 +163,7 @@ function goBack() {
 
   if (previous) {
     currentFolderId.value = previous.id
+    emit('folder-change', currentFolderId.value)
   }
 }
 
