@@ -186,12 +186,11 @@ function getFileIcon(type: string) {
 }
 
 async function downloadRowFile(row: FileItem) {
-  
-  try {
-    if (!row.storagePath) {
-      throw new Error('Chemin de stockage introuvable.')
-    }
+  if (!row.storagePath || downloadingId.value !== null) return
 
+  downloadingId.value = row.id
+
+  try {
     const blob = await downloadFile(row.storagePath)
     const url = URL.createObjectURL(blob)
 
@@ -201,12 +200,13 @@ async function downloadRowFile(row: FileItem) {
       link.download = row.name
       link.click()
     } finally {
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
     }
   } catch (error) {
     console.error('Échec du téléchargement :', error)
+  } finally {
+    downloadingId.value = null
   }
-
 }
 
 function getSortIcon(key: SortKey) {
@@ -216,6 +216,16 @@ function getSortIcon(key: SortKey) {
     ? 'i-lucide-arrow-up'
     : 'i-lucide-arrow-down'
 }
+
+async function openItem(item: FileItem) {
+  if (item.type === 'folder') {
+    openFolder(item)
+    return
+  }
+
+  await navigateTo(`/files/${item.id}`)
+}
+
 </script>
 
 <template>
@@ -287,10 +297,11 @@ function getSortIcon(key: SortKey) {
           </button>
         </template>
 
+        
         <template #name-cell="{ row }">
           <button
             class="flex min-w-0 items-center gap-3 text-left cursor-pointer"
-            @click="openFolder(row.original)"
+            @click="openItem(row.original)"
           >
             <span
               class="flex size-9 shrink-0 items-center justify-center rounded-lg"
@@ -303,18 +314,18 @@ function getSortIcon(key: SortKey) {
                 class="size-5"
               />
             </span>
-
+          
             <span
               class="truncate font-medium hover:underline"
               :class="row.original.type === 'folder'
                 ? 'text-primary'
-                : ''
-              "
+                : ''"
             >
               {{ row.original.name }}
             </span>
           </button>
         </template>
+
 
         <template #updatedAt-cell="{ row }">
           <span class="whitespace-nowrap text-muted">

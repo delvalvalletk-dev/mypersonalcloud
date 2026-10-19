@@ -36,6 +36,28 @@ export function useFiles() {
 		return (data ?? []) as StoredFile[]
 	}
 
+  async function getFileById(id: string): Promise<StoredFile> {
+  const { data: authData, error: authError } =
+    await supabase.auth.getUser()
+
+  if (authError || !authData.user) {
+    throw new Error('Vous devez être connecté pour consulter ce fichier.')
+  }
+
+  const { data, error } = await supabase
+    .from('files')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', authData.user.id)
+    .single()
+
+  if (error || !data) {
+    throw new Error('Fichier introuvable ou inaccessible.')
+  }
+
+  return data as StoredFile
+  }
+
   async function uploadAndRegister(
     file: File,
     folderId: string | null = null,
@@ -88,6 +110,7 @@ export function useFiles() {
 
   return {
     uploadAndRegister,
+    getFileById,
 		getFiles
   }
 }
