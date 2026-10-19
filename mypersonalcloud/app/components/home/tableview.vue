@@ -5,6 +5,8 @@ import type { TableColumn } from '@nuxt/ui'
 import type { StoredFile } from '~/composables/useFiles'
 import type { StoredFolder } from '~/composables/useFolders'
 
+const downloadingId = ref<string | null>(null)
+
 const props = defineProps<{
   search: string
   files: StoredFile[]
@@ -14,6 +16,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'folder-change': [folderId: string | null]
 }>()
+
+const { downloadFile } = useFileStorage()
 
 type FileItem = {
   id: string
@@ -91,6 +95,7 @@ const columns: TableColumn<FileItem>[] = [
   { accessorKey: 'name', header: 'Nom' },
   { accessorKey: 'updatedAt', header: 'Modifié' },
   { accessorKey: 'size', header: 'Taille' },
+  { id: 'actions', header: '' },
 ]
 
 // Navigation dans l'arborescence
@@ -180,6 +185,30 @@ function getFileIcon(type: string) {
   return icons[type] ?? 'i-lucide-file'
 }
 
+async function downloadRowFile(row: FileItem) {
+  
+  try {
+    if (!row.storagePath) {
+      throw new Error('Chemin de stockage introuvable.')
+    }
+
+    const blob = await downloadFile(row.storagePath)
+    const url = URL.createObjectURL(blob)
+
+    try {
+      const link = document.createElement('a')
+      link.href = url
+      link.download = row.name
+      link.click()
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
+  } catch (error) {
+    console.error('Échec du téléchargement :', error)
+  }
+
+}
+
 function getSortIcon(key: SortKey) {
   if (sortKey.value !== key) return 'i-lucide-arrow-up-down'
 
@@ -260,11 +289,7 @@ function getSortIcon(key: SortKey) {
 
         <template #name-cell="{ row }">
           <button
-            class="flex min-w-0 items-center gap-3 text-left"
-            :class="row.original.type === 'folder'
-              ? 'cursor-pointer'
-              : 'cursor-default'"
-            :disabled="row.original.type !== 'folder'"
+            class="flex min-w-0 items-center gap-3 text-left cursor-pointer"
             @click="openFolder(row.original)"
           >
             <span
@@ -280,10 +305,11 @@ function getSortIcon(key: SortKey) {
             </span>
 
             <span
-              class="truncate font-medium"
+              class="truncate font-medium hover:underline"
               :class="row.original.type === 'folder'
-                ? 'text-primary hover:underline'
-                : 'text-default'"
+                ? 'text-primary'
+                : ''
+              "
             >
               {{ row.original.name }}
             </span>
@@ -300,6 +326,23 @@ function getSortIcon(key: SortKey) {
           <span class="whitespace-nowrap text-muted">
             {{ row.original.size }}
           </span>
+        </template>
+
+        <template #actions-cell="{ row }">
+          <div class="flex justify-end">
+            <UButton
+              v-if="row.original.type !== 'folder'"
+              icon="i-lucide-download"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              aria-label="Télécharger le fichier"
+              title="Télécharger"
+              :loading="downloadingId === row.original.id"
+              :disabled="downloadingId !== null"
+              @click.stop="downloadRowFile(row.original)"
+            />
+          </div>
         </template>
       </UTable>
 
