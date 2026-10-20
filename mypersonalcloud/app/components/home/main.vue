@@ -87,6 +87,14 @@ async function createFolder() {
     isCreatingFolder.value = false
   }
 }
+
+async function handleFileDeleted() {
+  await loadItems()
+
+  if (loadError.value) {
+    throw new Error(loadError.value)
+  }
+}
 </script>
 
 <template>

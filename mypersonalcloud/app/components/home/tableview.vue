@@ -6,6 +6,11 @@ import type { StoredFile } from '~/composables/useFiles'
 import type { StoredFolder } from '~/composables/useFolders'
 
 const downloadingId = ref<string | null>(null)
+const deletingId = ref<string | null>(null)
+const deleteError = ref('')
+const showDeleteDialog = ref(false)
+const fileToDelete = ref<FileItem | null>(null)
+const deleteSuccess = ref('')
 
 const props = defineProps<{
   search: string
@@ -14,10 +19,12 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'folder-change': [folderId: string | null]
+  'folder-change': [folderId: string | null],
+  'file-deleted': []
 }>()
 
 const { downloadFile } = useFileStorage()
+const { deleteAndUnregister } = useFiles()
 
 type FileItem = {
   id: string
@@ -226,6 +233,57 @@ async function openItem(item: FileItem) {
   await navigateTo(`/files/${item.id}`)
 }
 
+function requestDelete(row: FileItem) {
+  deleteError.value = ''
+  deleteSuccess.value = ''
+  fileToDelete.value = row
+  showDeleteDialog.value = true
+}
+
+function cancelDelete() {
+  if (deletingId.value !== null) return
+
+  showDeleteDialog.value = false
+  fileToDelete.value = null
+}
+
+async function confirmDelete() {
+  const row = fileToDelete.value
+
+  if (!row || deletingId.value !== null || downloadingId.value !== null) {
+    return
+  }
+
+  const file = props.files.find(item => item.id === row.id)
+
+  if (!file) {
+    deleteError.value = 'Fichier introuvable.'
+    showDeleteDialog.value = false
+    return
+  }
+
+  deletingId.value = row.id
+  deleteError.value = ''
+
+  try {
+    await deleteAndUnregister(file)
+
+    deleteSuccess.value = `« ${row.name} » a été supprimé définitivement.`
+    showDeleteDialog.value = false
+    fileToDelete.value = null
+
+    emit('file-deleted')
+  } catch (error) {
+    deleteError.value = error instanceof Error
+      ? error.message
+      : 'Impossible de supprimer ce fichier.'
+
+    showDeleteDialog.value = false
+  } finally {
+    deletingId.value = null
+  }
+}
+
 </script>
 
 <template>
@@ -256,6 +314,31 @@ async function openItem(item: FileItem) {
 
     <!-- Tableau -->
     <div class="overflow-hidden rounded-xl border border-default bg-default">
+      
+      <div v-if="deleteSuccess || deleteError" class="p-3">
+        <UAlert
+          v-if="deleteSuccess"
+          color="success"
+          variant="subtle"
+          icon="i-lucide-check-circle"
+          title="Fichier supprimé"
+          :description="deleteSuccess"
+          close
+          @update:open="deleteSuccess = ''"
+        />
+      
+        <UAlert
+          v-else
+          color="error"
+          variant="subtle"
+          icon="i-lucide-alert-circle"
+          title="Échec de la suppression"
+          :description="deleteError"
+          close
+          @update:open="deleteError = ''"
+        />
+      </div>
+      
       <UTable
         :data="sortedFiles"
         :columns="columns"
@@ -353,9 +436,67 @@ async function openItem(item: FileItem) {
               :disabled="downloadingId !== null"
               @click.stop="downloadRowFile(row.original)"
             />
+            <UButton
+              v-if="row.original.type !== 'folder'"
+              icon="i-lucide-trash-2"
+              color="error"
+              variant="ghost"
+              size="sm"
+              aria-label="Supprimer le fichier"
+              title="Supprimer"
+              :loading="deletingId === row.original.id"
+              :disabled="downloadingId !== null || deletingId !== null"
+              @click.stop="requestDelete(row.original)"
+            />
           </div>
         </template>
       </UTable>
+
+      <UModal v-model:open="showDeleteDialog">
+        <template #content>
+          <div class="p-5 sm:p-6">
+            <div class="flex items-start gap-3">
+              <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-error/10 text-error">
+                <UIcon name="i-lucide-trash-2" class="size-5" />
+              </div>
+            
+              <div class="min-w-0 flex-1">
+                <h2 class="text-base font-semibold text-highlighted">
+                  Supprimer ce fichier ?
+                </h2>
+                <p class="mt-1 break-words text-sm text-muted">
+                  {{ fileToDelete?.name }}
+                </p>
+              </div>
+            </div>
+          
+            <p class="mt-4 text-sm text-muted">
+              Cette action est définitive. Le fichier et ses données associées seront supprimés.
+            </p>
+          
+            <div class="mt-6 flex justify-end gap-2">
+              <UButton
+                color="neutral"
+                variant="outline"
+                :disabled="deletingId !== null"
+                @click="cancelDelete"
+              >
+                Annuler
+              </UButton>
+            
+              <UButton
+                color="error"
+                icon="i-lucide-trash-2"
+                :loading="deletingId === fileToDelete?.id"
+                :disabled="deletingId !== null"
+                @click="confirmDelete"
+              >
+                Supprimer définitivement
+              </UButton>
+            </div>
+          </div>
+        </template>
+      </UModal>
 
       <div
         v-if="sortedFiles.length === 0"

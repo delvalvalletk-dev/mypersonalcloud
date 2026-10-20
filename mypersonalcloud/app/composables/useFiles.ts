@@ -108,8 +108,39 @@ export function useFiles() {
     return data as StoredFile
   }
 
+  async function deleteAndUnregister(file: StoredFile): Promise<void> {
+    
+    const { data: authData, error: authError } =
+      await supabase.auth.getUser()
+
+    if (authError || !authData.user) {
+      throw new Error('Vous devez être connecté pour supprimer un fichier.')
+    }
+
+    if (file.user_id !== authData.user.id) {
+      throw new Error('Vous ne pouvez pas supprimer ce fichier.')
+    }
+
+    // 1. Supprimer le fichier physique dans Supabase Storage.
+    await deleteFile(file.storage_path)
+
+    // 2. Supprimer ses métadonnées en base.
+    const { error } = await supabase
+      .from('files')
+      .delete()
+      .eq('id', file.id)
+      .eq('user_id', authData.user.id)
+
+    if (error) {
+      throw new Error(
+        `Le fichier physique a été supprimé, mais pas ses métadonnées : ${error.message}`,
+      )
+    }
+  }
+
   return {
     uploadAndRegister,
+    deleteAndUnregister,
     getFileById,
 		getFiles
   }
