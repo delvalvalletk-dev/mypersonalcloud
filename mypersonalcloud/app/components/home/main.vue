@@ -1,41 +1,108 @@
 <!-- Composant principal de la page Accueil / Home -->
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
 import DropZone from './dropzone.vue'
-import FileTable from './tableview.vue'
+import TableView from './tableview.vue'
+import { computed, onMounted, ref } from 'vue'
+import { useFiles } from '~/composables/useFiles'
+import { useFolders } from '~/composables/useFolders'
+import type { StoredFile } from '~/composables/useFiles'
+import type { StoredFolder } from '~/composables/useFolders'
 
 const search = ref('')
 const showCreateFolder = ref(false)
 const folderName = ref('')
 
-// À remplacer par les données réelles du tableau
-const totalItems = 7
+const files = ref<StoredFile[]>([])
+const folders = ref<StoredFolder[]>([])
 
+const isLoading = ref(true)
+const loadError = ref('')
+const isCreatingFolder = ref(false)
+const createFolderError = ref('')
+
+const currentFolderId = ref<string | null>(null)
+
+const { getFiles } = useFiles()
+const { getFolders, createFolder: saveFolder } = useFolders()
+
+const totalItems = computed(() => files.value.length + folders.value.length)
 const hasSearch = computed(() => search.value.trim().length > 0)
+
+async function loadItems() {
+  isLoading.value = true
+  loadError.value = ''
+
+  try {
+    const [loadedFiles, loadedFolders] = await Promise.all([
+      getFiles(),
+      getFolders(),
+    ])
+
+    files.value = loadedFiles
+    folders.value = loadedFolders
+  } catch (error) {
+    loadError.value = error instanceof Error
+      ? error.message
+      : 'Une erreur est survenue pendant le chargement.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+async function refreshItems() {
+  await loadItems()
+}
+
+onMounted(loadItems)
 
 function openCreateFolder() {
   folderName.value = ''
+  createFolderError.value = ''
   showCreateFolder.value = true
 }
 
-function createFolder() {
+async function createFolder() {
   const name = folderName.value.trim()
 
-  if (!name) return
+  if (!name || isCreatingFolder.value) return
 
-  // TODO : ajouter le dossier aux données de FileTable
-  // puis, plus tard, l'enregistrer dans Supabase.
+  isCreatingFolder.value = true
+  createFolderError.value = ''
 
-  console.log('Création du dossier :', name)
-  showCreateFolder.value = false
-  folderName.value = ''
+  try {
+    await saveFolder(name, currentFolderId.value)
+
+    // Recharger les données depuis Supabase pour garder
+    // le tableau synchronisé avec la base de données.
+    await loadItems()
+
+    if (loadError.value) {
+      throw new Error(loadError.value)
+    }
+
+    showCreateFolder.value = false
+    folderName.value = ''
+  } catch (error) {
+    createFolderError.value = error instanceof Error
+      ? error.message
+      : 'Impossible de créer le dossier.'
+  } finally {
+    isCreatingFolder.value = false
+  }
+}
+
+async function handleFileDeleted() {
+  await loadItems()
+
+  if (loadError.value) {
+    throw new Error(loadError.value)
+  }
 }
 </script>
 
 <template>
   <main class="min-w-0 flex-1 space-y-8 p-5 md:p-8">
-
     <!-- En-tête de la page -->
     <section
       class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
@@ -63,7 +130,10 @@ function createFolder() {
 
     <!-- Téléversement -->
     <section aria-label="Ajouter des fichiers">
-      <DropZone />
+      <DropZone
+        :folder-id="currentFolderId"
+        @uploaded="refreshItems"
+      />
     </section>
 
     <!-- Recherche -->
@@ -77,14 +147,11 @@ function createFolder() {
         class="w-full max-w-xl"
         :ui="{
           root: 'w-full',
-          base: 'rounded-xl'
+          base: 'rounded-xl',
         }"
       >
         <template #leading>
-          <UIcon
-            name="i-lucide-search"
-            class="size-5 text-muted"
-          />
+          <UIcon name="i-lucide-search" class="size-5 text-muted" />
         </template>
 
         <template #trailing>
@@ -103,7 +170,9 @@ function createFolder() {
 
     <!-- Liste des fichiers -->
     <section class="space-y-4">
-      <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div class="space-y-1">
           <h2 class="text-base font-semibold text-default">
             {{ hasSearch ? 'Résultats de recherche' : 'Tous les fichiers' }}
@@ -117,11 +186,52 @@ function createFolder() {
         </div>
 
         <span class="text-sm text-muted">
-          {{ totalItems }} éléments
+          {{ totalItems }} élément{{ totalItems > 1 ? 's' : '' }}
         </span>
       </div>
 
-      <FileTable :search="search" />
+      <div
+        v-if="isLoading"
+        class="flex items-center justify-center gap-2 py-10"
+      >
+        <UIcon
+          name="i-lucide-loader-circle"
+          class="size-5 animate-spin"
+        />
+        <span class="text-sm text-muted">
+          Chargement de vos fichiers...
+        </span>
+      </div>
+
+      <UAlert
+        v-else-if="loadError"
+        color="error"
+        variant="subtle"
+        title="Impossible de charger vos fichiers"
+        :description="loadError"
+      >
+        <template #footer>
+          <UButton
+            size="sm"
+            color="error"
+            variant="outline"
+            @click="loadItems"
+          >
+            Réessayer
+          </UButton>
+        </template>
+      </UAlert>
+
+      <TableView
+        v-else
+        :search="search"
+        :files="files"
+        :folders="folders"
+        :current-folder-id="currentFolderId"
+        @folder-change="currentFolderId = $event"
+        @file-deleted="refreshItems"
+        @items-changed="refreshItems"
+      />
     </section>
 
     <!-- Création d'un dossier -->
@@ -146,14 +256,24 @@ function createFolder() {
                 placeholder="Ex. : Mes documents"
                 class="w-full"
                 :ui="{ base: 'rounded-xl' }"
+                :disabled="isCreatingFolder"
               />
             </UFormField>
+
+            <UAlert
+              v-if="createFolderError"
+              color="error"
+              variant="subtle"
+              title="Création impossible"
+              :description="createFolderError"
+            />
 
             <div class="flex justify-end gap-3">
               <UButton
                 color="neutral"
                 variant="outline"
                 type="button"
+                :disabled="isCreatingFolder"
                 @click="showCreateFolder = false"
               >
                 Annuler
@@ -162,7 +282,8 @@ function createFolder() {
               <UButton
                 type="submit"
                 icon="i-lucide-folder-plus"
-                :disabled="!folderName.trim()"
+                :loading="isCreatingFolder"
+                :disabled="!folderName.trim() || isCreatingFolder"
               >
                 Créer le dossier
               </UButton>
@@ -171,6 +292,5 @@ function createFolder() {
         </div>
       </template>
     </UModal>
-
   </main>
 </template>

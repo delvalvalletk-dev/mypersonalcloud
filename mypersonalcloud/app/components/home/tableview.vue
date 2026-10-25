@@ -1,59 +1,145 @@
-```vue
+
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { TableColumn } from '@nuxt/ui'
+import type { StoredFile } from '~/composables/useFiles'
+import type { StoredFolder } from '~/composables/useFolders'
+
+const downloadingId = ref<string | null>(null)
+const deletingId = ref<string | null>(null)
+const deleteError = ref('')
+const showDeleteDialog = ref(false)
+const fileToDelete = ref<FileItem | null>(null)
+const deleteSuccess = ref('')
+
+const showRenameDialog = ref(false)
+const folderToRename = ref<FileItem | null>(null)
+const newFolderName = ref('')
+const isRenamingFolder = ref(false)
+const renameError = ref('')
+
+const showDeleteFolderDialog = ref(false)
+const folderToDelete = ref<FileItem | null>(null)
+const deletingFolderId = ref<string | null>(null)
+const deleteFolderError = ref('')
+
+const props = defineProps<{
+  search: string
+  files: StoredFile[]
+  folders: StoredFolder[]
+  currentFolderId: string | null
+}>()
+
+const emit = defineEmits<{
+  'folder-change': [folderId: string | null]
+  'file-deleted': []
+  'items-changed': []
+}>()
+
+const { downloadFile } = useFileStorage()
+const { deleteAndUnregister } = useFiles()
+const { renameFolder: saveFolderName, deleteFolder } = useFolders()
 
 type FileItem = {
-  id: number
+  id: string
   name: string
   updatedAt: string
   updatedTimestamp: number
   size: string
   sizeBytes: number
   type: string
-  parentId: number | null
+  parentId: string | null
+  storagePath?: string
 }
 
-// Données de test organisées en arborescence
-const files = ref<FileItem[]>([
-  { id: 1, name: 'Documents', updatedAt: 'Hier', updatedTimestamp: 20261010, size: '-', sizeBytes: 0, type: 'folder', parentId: null },
-  { id: 2, name: 'Photos', updatedAt: '12 sept.', updatedTimestamp: 20260912, size: '-', sizeBytes: 0, type: 'folder', parentId: null },
-  { id: 3, name: 'Projets', updatedAt: '3 oct.', updatedTimestamp: 20261003, size: '-', sizeBytes: 0, type: 'folder', parentId: null },
-  { id: 4, name: 'Sauvegardes', updatedAt: '28 août', updatedTimestamp: 20260828, size: '-', sizeBytes: 0, type: 'folder', parentId: null },
-  { id: 5, name: 'CV-2026.pdf', updatedAt: '5 oct.', updatedTimestamp: 20261005, size: '212 Ko', sizeBytes: 212 * 1024, type: 'pdf', parentId: null },
-  { id: 6, name: 'budget.xlsx', updatedAt: '1 oct.', updatedTimestamp: 20261001, size: '48 Ko', sizeBytes: 48 * 1024, type: 'spreadsheet', parentId: null },
-  { id: 7, name: 'vacances.mp4', updatedAt: '14 août', updatedTimestamp: 20260814, size: '1,2 Go', sizeBytes: 1.2 * 1024 ** 3, type: 'video', parentId: null },
+function formatDate(date: string): string {
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'medium',
+  }).format(new Date(date))
+}
 
-  // Contenu de démonstration du dossier Documents
-  { id: 8, name: 'Cours', updatedAt: 'Hier', updatedTimestamp: 20261010, size: '-', sizeBytes: 0, type: 'folder', parentId: 1 },
-  { id: 9, name: 'Rapport.pdf', updatedAt: 'Aujourd’hui', updatedTimestamp: 20261011, size: '350 Ko', sizeBytes: 350 * 1024, type: 'pdf', parentId: 1 },
-  { id: 10, name: 'Notes.txt', updatedAt: '9 oct.', updatedTimestamp: 20261009, size: '8 Ko', sizeBytes: 8 * 1024, type: 'file', parentId: 1 },
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} o`
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Ko`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Mo`
 
-  // Contenu du dossier Photos
-  { id: 11, name: 'Anniversaire', updatedAt: '10 sept.', updatedTimestamp: 20260910, size: '-', sizeBytes: 0, type: 'folder', parentId: 2 },
-  { id: 12, name: 'photo.jpg', updatedAt: '12 sept.', updatedTimestamp: 20260912, size: '2,4 Mo', sizeBytes: 2.4 * 1024 ** 2, type: 'image', parentId: 2 }
+  return `${(bytes / 1024 ** 3).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Go`
+}
+
+function getFileType(name: string): string {
+  const extension = name.split('.').pop()?.toLowerCase()
+
+  const types: Record<string, string> = {
+    pdf: 'pdf',
+    xls: 'spreadsheet',
+    xlsx: 'spreadsheet',
+    ods: 'spreadsheet',
+    csv: 'spreadsheet',
+    mp4: 'video',
+    webm: 'video',
+    mov: 'video',
+    jpg: 'image',
+    jpeg: 'image',
+    png: 'image',
+    gif: 'image',
+    webp: 'image',
+  }
+
+  return extension ? types[extension] ?? 'file' : 'file'
+}
+
+const files = computed<FileItem[]>(() => [
+  ...props.folders.map(folder => ({
+    id: folder.id,
+    name: folder.name,
+    updatedAt: formatDate(folder.created_at),
+    updatedTimestamp: new Date(folder.created_at).getTime(),
+    size: '-',
+    sizeBytes: 0,
+    type: 'folder',
+    parentId: folder.parent_id,
+  })),
+  ...props.files.map(file => ({
+    id: file.id,
+    name: file.name,
+    updatedAt: formatDate(file.created_at),
+    updatedTimestamp: new Date(file.created_at).getTime(),
+    size: formatSize(Number(file.size_bytes)),
+    sizeBytes: Number(file.size_bytes),
+    type: getFileType(file.name),
+    parentId: file.folder_id,
+    storagePath: file.storage_path,
+  })),
 ])
 
 const columns: TableColumn<FileItem>[] = [
   { accessorKey: 'name', header: 'Nom' },
   { accessorKey: 'updatedAt', header: 'Modifié' },
-  { accessorKey: 'size', header: 'Taille' }
+  { accessorKey: 'size', header: 'Taille' },
+  { id: 'actions', header: '' },
 ]
 
-// Navigation entre dossiers
-const currentFolderId = ref<number | null>(null)
-const folderHistory = ref<{ id: number | null; name: string }[]>([])
+const folderHistory = ref<{ id: string | null; name: string }[]>([])
 
 const currentFolderName = computed(() => {
-  if (currentFolderId.value === null) return 'Mes fichiers'
+  if (props.currentFolderId === null) return 'Mes fichiers'
 
-  return files.value.find(file => file.id === currentFolderId.value)?.name
-    ?? 'Dossier'
+  return files.value.find(
+    file => file.id === props.currentFolderId,
+  )?.name ?? 'Dossier'
 })
 
-const currentFiles = computed(() =>
-  files.value.filter(file => file.parentId === currentFolderId.value)
-)
+const currentFiles = computed(() => {
+  const query = props.search.trim().toLocaleLowerCase('fr')
+
+  return files.value.filter(file => {
+    const isInCurrentFolder = file.parentId === props.currentFolderId
+    const matchesSearch = !query
+      || file.name.toLocaleLowerCase('fr').includes(query)
+
+    return isInCurrentFolder && matchesSearch
+  })
+})
 
 // Tri
 type SortKey = 'name' | 'updatedTimestamp' | 'sizeBytes'
@@ -62,7 +148,6 @@ const sortDirection = ref<'asc' | 'desc'>('asc')
 
 const sortedFiles = computed(() => {
   return [...currentFiles.value].sort((a, b) => {
-    // Afficher les dossiers avant les fichiers
     if (a.type === 'folder' && b.type !== 'folder') return -1
     if (a.type !== 'folder' && b.type === 'folder') return 1
 
@@ -90,18 +175,24 @@ function openFolder(folder: FileItem) {
   if (folder.type !== 'folder') return
 
   folderHistory.value.push({
-    id: currentFolderId.value,
-    name: currentFolderName.value
+    id: props.currentFolderId,
+    name: currentFolderName.value,
   })
 
-  currentFolderId.value = folder.id
+  emit('folder-change', folder.id)
 }
 
 function goBack() {
-  const previous = folderHistory.value.pop()
+  if (props.currentFolderId === null) return
 
-  if (previous) {
-    currentFolderId.value = previous.id
+  const currentFolder = props.folders.find(
+    folder => folder.id === props.currentFolderId,
+  )
+
+  if (currentFolder) {
+    emit('folder-change', currentFolder.parent_id)
+  } else {
+    emit('folder-change', null)
   }
 }
 
@@ -112,10 +203,34 @@ function getFileIcon(type: string) {
     spreadsheet: 'i-lucide-file-spreadsheet',
     video: 'i-lucide-file-video',
     image: 'i-lucide-file-image',
-    file: 'i-lucide-file'
+    file: 'i-lucide-file',
   }
 
   return icons[type] ?? 'i-lucide-file'
+}
+
+async function downloadRowFile(row: FileItem) {
+  if (!row.storagePath || downloadingId.value !== null) return
+
+  downloadingId.value = row.id
+
+  try {
+    const blob = await downloadFile(row.storagePath)
+    const url = URL.createObjectURL(blob)
+
+    try {
+      const link = document.createElement('a')
+      link.href = url
+      link.download = row.name
+      link.click()
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    }
+  } catch (error) {
+    console.error('Échec du téléchargement :', error)
+  } finally {
+    downloadingId.value = null
+  }
 }
 
 function getSortIcon(key: SortKey) {
@@ -125,6 +240,136 @@ function getSortIcon(key: SortKey) {
     ? 'i-lucide-arrow-up'
     : 'i-lucide-arrow-down'
 }
+
+async function openItem(item: FileItem) {
+  if (item.type === 'folder') {
+    openFolder(item)
+    return
+  }
+
+  await navigateTo(`/files/${item.id}`)
+}
+
+function requestDelete(row: FileItem) {
+  deleteError.value = ''
+  deleteSuccess.value = ''
+  fileToDelete.value = row
+  showDeleteDialog.value = true
+}
+
+function cancelDelete() {
+  if (deletingId.value !== null) return
+
+  showDeleteDialog.value = false
+  fileToDelete.value = null
+}
+
+async function confirmDelete() {
+  const row = fileToDelete.value
+
+  if (!row || deletingId.value !== null || downloadingId.value !== null) {
+    return
+  }
+
+  const file = props.files.find(item => item.id === row.id)
+
+  if (!file) {
+    deleteError.value = 'Fichier introuvable.'
+    showDeleteDialog.value = false
+    return
+  }
+
+  deletingId.value = row.id
+  deleteError.value = ''
+
+  try {
+    await deleteAndUnregister(file)
+
+    deleteSuccess.value = `« ${row.name} » a été supprimé définitivement.`
+    showDeleteDialog.value = false
+    fileToDelete.value = null
+
+    emit('file-deleted')
+  } catch (error) {
+    deleteError.value = error instanceof Error
+      ? error.message
+      : 'Impossible de supprimer ce fichier.'
+
+    showDeleteDialog.value = false
+  } finally {
+    deletingId.value = null
+  }
+}
+
+function requestRename(folder: FileItem) {
+  renameError.value = ''
+  folderToRename.value = folder
+  newFolderName.value = folder.name
+  showRenameDialog.value = true
+}
+
+async function renameFolder() {
+  const folder = folderToRename.value
+  const name = newFolderName.value.trim()
+
+  if (!folder || !name || isRenamingFolder.value) return
+
+  isRenamingFolder.value = true
+  renameError.value = ''
+
+  try {
+    await saveFolderName(folder.id, name)
+
+    showRenameDialog.value = false
+    folderToRename.value = null
+
+    emit('items-changed')
+  } catch (error) {
+    renameError.value = error instanceof Error
+      ? error.message
+      : 'Impossible de renommer le dossier.'
+  } finally {
+    isRenamingFolder.value = false
+  }
+}
+
+function requestDeleteFolder(folder: FileItem) {
+  deleteFolderError.value = ''
+  folderToDelete.value = folder
+  showDeleteFolderDialog.value = true
+}
+
+function cancelDeleteFolder() {
+  if (deletingFolderId.value !== null) return
+
+  showDeleteFolderDialog.value = false
+  folderToDelete.value = null
+}
+
+async function confirmDeleteFolder() {
+  const folder = folderToDelete.value
+
+  if (!folder || deletingFolderId.value !== null) return
+
+  deletingFolderId.value = folder.id
+  deleteFolderError.value = ''
+
+  try {
+    await deleteFolder(folder.id)
+
+    showDeleteFolderDialog.value = false
+    folderToDelete.value = null
+
+    emit('items-changed')
+  } catch (error) {
+    deleteFolderError.value = error instanceof Error
+      ? error.message
+      : 'Impossible de supprimer le dossier.'
+  } finally {
+    deletingFolderId.value = null
+  }
+}
+
 </script>
 
 <template>
@@ -132,7 +377,7 @@ function getSortIcon(key: SortKey) {
     <!-- Navigation dans l'arborescence -->
     <div class="flex flex-wrap items-center gap-2">
       <UButton
-        v-if="currentFolderId !== null"
+        v-if="props.currentFolderId !== null"
         icon="i-lucide-arrow-left"
         color="neutral"
         variant="ghost"
@@ -155,6 +400,31 @@ function getSortIcon(key: SortKey) {
 
     <!-- Tableau -->
     <div class="overflow-hidden rounded-xl border border-default bg-default">
+      
+      <div v-if="deleteSuccess || deleteError" class="p-3">
+        <UAlert
+          v-if="deleteSuccess"
+          color="success"
+          variant="subtle"
+          icon="i-lucide-check-circle"
+          title="Fichier supprimé"
+          :description="deleteSuccess"
+          close
+          @update:open="deleteSuccess = ''"
+        />
+      
+        <UAlert
+          v-else
+          color="error"
+          variant="subtle"
+          icon="i-lucide-alert-circle"
+          title="Échec de la suppression"
+          :description="deleteError"
+          close
+          @update:open="deleteError = ''"
+        />
+      </div>
+      
       <UTable
         :data="sortedFiles"
         :columns="columns"
@@ -165,6 +435,7 @@ function getSortIcon(key: SortKey) {
           td: 'px-4 py-3.5 text-sm',
           tr: 'transition-colors hover:bg-elevated/50'
         }"
+        empty="Ce dossier est vide."
       >
         <template #name-header>
           <button
@@ -196,14 +467,11 @@ function getSortIcon(key: SortKey) {
           </button>
         </template>
 
+        
         <template #name-cell="{ row }">
           <button
-            class="flex min-w-0 items-center gap-3 text-left"
-            :class="row.original.type === 'folder'
-              ? 'cursor-pointer'
-              : 'cursor-default'"
-            :disabled="row.original.type !== 'folder'"
-            @click="openFolder(row.original)"
+            class="flex min-w-0 items-center gap-3 text-left cursor-pointer"
+            @click="openItem(row.original)"
           >
             <span
               class="flex size-9 shrink-0 items-center justify-center rounded-lg"
@@ -216,17 +484,18 @@ function getSortIcon(key: SortKey) {
                 class="size-5"
               />
             </span>
-
+          
             <span
-              class="truncate font-medium"
+              class="truncate font-medium hover:underline"
               :class="row.original.type === 'folder'
-                ? 'text-primary hover:underline'
-                : 'text-default'"
+                ? 'text-primary'
+                : ''"
             >
               {{ row.original.name }}
             </span>
           </button>
         </template>
+
 
         <template #updatedAt-cell="{ row }">
           <span class="whitespace-nowrap text-muted">
@@ -239,15 +508,185 @@ function getSortIcon(key: SortKey) {
             {{ row.original.size }}
           </span>
         </template>
+
+        <template #actions-cell="{ row }">
+          <div class="flex justify-end">
+            <UButton
+              v-if="row.original.type !== 'folder'"
+              icon="i-lucide-download"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              aria-label="Télécharger le fichier"
+              title="Télécharger"
+              :loading="downloadingId === row.original.id"
+              :disabled="downloadingId !== null"
+              @click.stop="downloadRowFile(row.original)"
+            />
+            <UButton
+              v-if="row.original.type !== 'folder'"
+              icon="i-lucide-trash-2"
+              color="error"
+              variant="ghost"
+              size="sm"
+              aria-label="Supprimer le fichier"
+              title="Supprimer"
+              :loading="deletingId === row.original.id"
+              :disabled="downloadingId !== null || deletingId !== null"
+              @click.stop="requestDelete(row.original)"
+            />
+            <UButton
+              v-if="row.original.type === 'folder'"
+              icon="i-lucide-pencil"
+              variant="ghost"
+              color="neutral"
+              aria-label="Renommer le dossier"
+              @click="requestRename(row.original)"
+            />
+            <UButton
+              v-if="row.original.type === 'folder'"
+              icon="i-lucide-trash-2"
+              color="error"
+              variant="ghost"
+              aria-label="Supprimer le dossier"
+              :disabled="deletingFolderId !== null"
+              @click="requestDeleteFolder(row.original)"
+            />
+          </div>
+        </template>
       </UTable>
 
-      <div
-        v-if="sortedFiles.length === 0"
-        class="px-4 py-10 text-center text-sm text-muted"
-      >
-        Ce dossier est vide.
-      </div>
+      <UModal v-model:open="showDeleteDialog">
+        <template #content>
+          <div class="p-5 sm:p-6">
+            <div class="flex items-start gap-3">
+              <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-error/10 text-error">
+                <UIcon name="i-lucide-trash-2" class="size-5" />
+              </div>
+            
+              <div class="min-w-0 flex-1">
+                <h2 class="text-base font-semibold text-highlighted">
+                  Supprimer ce fichier ?
+                </h2>
+                <p class="mt-1 break-words text-sm text-muted">
+                  {{ fileToDelete?.name }}
+                </p>
+              </div>
+            </div>
+          
+            <p class="mt-4 text-sm text-muted">
+              Cette action est définitive. Le fichier et ses données associées seront supprimés.
+            </p>
+          
+            <div class="mt-6 flex justify-end gap-2">
+              <UButton
+                color="neutral"
+                variant="outline"
+                :disabled="deletingId !== null"
+                @click="cancelDelete"
+              >
+                Annuler
+              </UButton>
+            
+              <UButton
+                color="error"
+                icon="i-lucide-trash-2"
+                :loading="deletingId === fileToDelete?.id"
+                :disabled="deletingId !== null"
+                @click="confirmDelete"
+              >
+                Supprimer définitivement
+              </UButton>
+            </div>
+          </div>
+        </template>
+      </UModal>
+
+      <UModal v-model:open="showRenameDialog">
+        <template #content>
+          <div class="space-y-4 p-4">
+            <h2 class="text-lg font-semibold">Renommer le dossier</h2>
+          
+            <UFormField label="Nouveau nom" name="folderName">
+              <UInput
+                v-model="newFolderName"
+                autofocus
+                class="w-full"
+                placeholder="Nom du dossier"
+                @keydown.enter="renameFolder"
+              />
+            </UFormField>
+          
+            <UAlert
+              v-if="renameError"
+              color="error"
+              variant="soft"
+              :description="renameError"
+            />
+          
+            <div class="flex justify-end gap-2">
+              <UButton
+                color="neutral"
+                variant="outline"
+                :disabled="isRenamingFolder"
+                @click="showRenameDialog = false"
+              >
+                Annuler
+              </UButton>
+            
+              <UButton
+                :loading="isRenamingFolder"
+                :disabled="!newFolderName.trim()"
+                @click="renameFolder"
+              >
+                Renommer
+              </UButton>
+            </div>
+          </div>
+        </template>
+      </UModal>
+      <UModal v-model:open="showDeleteFolderDialog">
+        <template #content>
+          <div class="space-y-4 p-4">
+            <h2 class="text-lg font-semibold">
+              Supprimer le dossier
+            </h2>
+          
+            <p class="text-sm text-muted">
+              Voulez-vous vraiment supprimer le dossier
+              <strong>{{ folderToDelete?.name }}</strong> ?
+              Cette action est définitive. Le dossier doit être vide.
+            </p>
+          
+            <UAlert
+              v-if="deleteFolderError"
+              color="error"
+              variant="soft"
+              :description="deleteFolderError"
+            />
+          
+            <div class="flex justify-end gap-2">
+              <UButton
+                color="neutral"
+                variant="outline"
+                :disabled="deletingFolderId !== null"
+                @click="cancelDeleteFolder"
+              >
+                Annuler
+              </UButton>
+            
+              <UButton
+                color="error"
+                :loading="deletingFolderId === folderToDelete?.id"
+                :disabled="deletingFolderId !== null"
+                @click="confirmDeleteFolder"
+              >
+                Supprimer définitivement
+              </UButton>
+            </div>
+          </div>
+        </template>
+      </UModal>
     </div>
   </div>
 </template>
-```

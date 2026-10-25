@@ -1,0 +1,147 @@
+import type { Database } from "#build/types/supabase-database"
+
+export interface StoredFile {
+  id: string
+  user_id: string
+  folder_id: string | null
+  name: string
+  storage_path: string
+  size_bytes: number
+  mime_type: string | null
+  created_at: string
+}
+
+export function useFiles() {
+  const supabase = useSupabaseClient<Database>()
+  const { uploadFile, deleteFile } = useFileStorage()
+
+	async function getFiles(): Promise<StoredFile[]> {
+		const { data: authData, error: authError } =
+			await supabase.auth.getUser()
+	
+		if (authError || !authData.user) {
+			throw new Error('Vous devez être connecté pour consulter vos fichiers.')
+		}
+
+		const { data, error } = await supabase
+			.from('files')
+			.select('*')
+			.eq('user_id', authData.user.id)
+			.order('created_at', { ascending: false })
+
+		if (error) {
+			throw new Error(`Impossible de récupérer les fichiers : ${error.message}`)
+		}
+
+		return (data ?? []) as StoredFile[]
+	}
+
+  async function getFileById(id: string): Promise<StoredFile> {
+  const { data: authData, error: authError } =
+    await supabase.auth.getUser()
+
+  if (authError || !authData.user) {
+    throw new Error('Vous devez être connecté pour consulter ce fichier.')
+  }
+
+  const { data, error } = await supabase
+    .from('files')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', authData.user.id)
+    .single()
+
+  if (error || !data) {
+    throw new Error('Fichier introuvable ou inaccessible.')
+  }
+
+  return data as StoredFile
+  }
+
+  async function uploadAndRegister(
+    file: File,
+    folderId: string | null = null,
+  ): Promise<StoredFile> {
+    // 1. Vérifier l'utilisateur connecté.
+    const { data: authData, error: authError } =
+      await supabase.auth.getUser()
+
+    if (authError || !authData.user) {
+      throw new Error('Vous devez être connecté pour envoyer un fichier.')
+    }
+
+    const userId = authData.user.id
+
+    // 2. Envoyer le fichier physique dans Supabase Storage.
+    const uploadedFile = await uploadFile(file)
+
+    // 3. Enregistrer ses métadonnées en base.
+    const { data, error } = await supabase
+      .from('files')
+      .insert({
+        user_id: userId,  
+        folder_id: folderId,
+        name: uploadedFile.name,
+        storage_path: uploadedFile.path,
+        size_bytes: uploadedFile.size,
+        mime_type: uploadedFile.mimeType,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      // 4. Si l'insertion échoue, essayer de supprimer le fichier physique.
+      try {
+        await deleteFile(uploadedFile.path)
+      } catch (cleanupError) {
+        console.error(
+          'Impossible de supprimer le fichier après l’échec en base :',
+          cleanupError,
+        )
+      }
+
+      throw new Error(
+        `Le fichier a été envoyé, mais son enregistrement a échoué : ${error.message}`,
+      )
+    }
+
+    return data as StoredFile
+  }
+
+  async function deleteAndUnregister(file: StoredFile): Promise<void> {
+    
+    const { data: authData, error: authError } =
+      await supabase.auth.getUser()
+
+    if (authError || !authData.user) {
+      throw new Error('Vous devez être connecté pour supprimer un fichier.')
+    }
+
+    if (file.user_id !== authData.user.id) {
+      throw new Error('Vous ne pouvez pas supprimer ce fichier.')
+    }
+
+    // 1. Supprimer le fichier physique dans Supabase Storage.
+    await deleteFile(file.storage_path)
+
+    // 2. Supprimer ses métadonnées en base.
+    const { error } = await supabase
+      .from('files')
+      .delete()
+      .eq('id', file.id)
+      .eq('user_id', authData.user.id)
+
+    if (error) {
+      throw new Error(
+        `Le fichier physique a été supprimé, mais pas ses métadonnées : ${error.message}`,
+      )
+    }
+  }
+
+  return {
+    uploadAndRegister,
+    deleteAndUnregister,
+    getFileById,
+		getFiles
+  }
+}
