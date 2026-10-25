@@ -18,6 +18,11 @@ const newFolderName = ref('')
 const isRenamingFolder = ref(false)
 const renameError = ref('')
 
+const showDeleteFolderDialog = ref(false)
+const folderToDelete = ref<FileItem | null>(null)
+const deletingFolderId = ref<string | null>(null)
+const deleteFolderError = ref('')
+
 const props = defineProps<{
   search: string
   files: StoredFile[]
@@ -33,7 +38,7 @@ const emit = defineEmits<{
 
 const { downloadFile } = useFileStorage()
 const { deleteAndUnregister } = useFiles()
-const { renameFolder: saveFolderName } = useFolders()
+const { renameFolder: saveFolderName, deleteFolder } = useFolders()
 
 type FileItem = {
   id: string
@@ -328,6 +333,43 @@ async function renameFolder() {
   }
 }
 
+function requestDeleteFolder(folder: FileItem) {
+  deleteFolderError.value = ''
+  folderToDelete.value = folder
+  showDeleteFolderDialog.value = true
+}
+
+function cancelDeleteFolder() {
+  if (deletingFolderId.value !== null) return
+
+  showDeleteFolderDialog.value = false
+  folderToDelete.value = null
+}
+
+async function confirmDeleteFolder() {
+  const folder = folderToDelete.value
+
+  if (!folder || deletingFolderId.value !== null) return
+
+  deletingFolderId.value = folder.id
+  deleteFolderError.value = ''
+
+  try {
+    await deleteFolder(folder.id)
+
+    showDeleteFolderDialog.value = false
+    folderToDelete.value = null
+
+    emit('items-changed')
+  } catch (error) {
+    deleteFolderError.value = error instanceof Error
+      ? error.message
+      : 'Impossible de supprimer le dossier.'
+  } finally {
+    deletingFolderId.value = null
+  }
+}
+
 </script>
 
 <template>
@@ -501,6 +543,15 @@ async function renameFolder() {
               aria-label="Renommer le dossier"
               @click="requestRename(row.original)"
             />
+            <UButton
+              v-if="row.original.type === 'folder'"
+              icon="i-lucide-trash-2"
+              color="error"
+              variant="ghost"
+              aria-label="Supprimer le dossier"
+              :disabled="deletingFolderId !== null"
+              @click="requestDeleteFolder(row.original)"
+            />
           </div>
         </template>
       </UTable>
@@ -589,6 +640,48 @@ async function renameFolder() {
                 @click="renameFolder"
               >
                 Renommer
+              </UButton>
+            </div>
+          </div>
+        </template>
+      </UModal>
+      <UModal v-model:open="showDeleteFolderDialog">
+        <template #content>
+          <div class="space-y-4 p-4">
+            <h2 class="text-lg font-semibold">
+              Supprimer le dossier
+            </h2>
+          
+            <p class="text-sm text-muted">
+              Voulez-vous vraiment supprimer le dossier
+              <strong>{{ folderToDelete?.name }}</strong> ?
+              Cette action est définitive. Le dossier doit être vide.
+            </p>
+          
+            <UAlert
+              v-if="deleteFolderError"
+              color="error"
+              variant="soft"
+              :description="deleteFolderError"
+            />
+          
+            <div class="flex justify-end gap-2">
+              <UButton
+                color="neutral"
+                variant="outline"
+                :disabled="deletingFolderId !== null"
+                @click="cancelDeleteFolder"
+              >
+                Annuler
+              </UButton>
+            
+              <UButton
+                color="error"
+                :loading="deletingFolderId === folderToDelete?.id"
+                :disabled="deletingFolderId !== null"
+                @click="confirmDeleteFolder"
+              >
+                Supprimer définitivement
               </UButton>
             </div>
           </div>
