@@ -54,8 +54,6 @@ async function refreshItems() {
   await loadItems()
 }
 
-onMounted(loadItems)
-
 function openCreateFolder() {
   folderName.value = ''
   createFolderError.value = ''
@@ -99,6 +97,9 @@ async function handleFileDeleted() {
     throw new Error(loadError.value)
   }
 }
+
+onMounted(loadItems)
+
 </script>
 
 <template>

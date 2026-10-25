@@ -9,6 +9,7 @@ export interface StoredFile {
   size_bytes: number
   mime_type: string | null
   created_at: string
+  deleted_at: string | null
 }
 
 export function useFiles() {
@@ -16,8 +17,7 @@ export function useFiles() {
   const { uploadFile, deleteFile } = useFileStorage()
 
 	async function getFiles(): Promise<StoredFile[]> {
-		const { data: authData, error: authError } =
-			await supabase.auth.getUser()
+		const { data: authData, error: authError } = await supabase.auth.getUser()
 	
 		if (authError || !authData.user) {
 			throw new Error('Vous devez être connecté pour consulter vos fichiers.')
@@ -27,6 +27,7 @@ export function useFiles() {
 			.from('files')
 			.select('*')
 			.eq('user_id', authData.user.id)
+      .is('deleted_at', null)
 			.order('created_at', { ascending: false })
 
 		if (error) {

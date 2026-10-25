@@ -1,49 +1,35 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import TrashConfirmDialog from './TrashConfirmDialog.vue'
 
-// Type d'un élément de la corbeille
-type TrashItem = {
-  id: number
-  name: string
-  type: 'file' | 'folder'
-  deletedAt: string
-  deletedAtTimestamp: number
-  size: number | null
-}
+import { useTrash, type TrashItem } from '~/composables/useTrash'
 
-// Données de démonstration
-const items = ref<TrashItem[]>([
-  {
-    id: 1,
-    name: 'ancien-devis.pdf',
-    type: 'file',
-    deletedAt: '6 oct.',
-    deletedAtTimestamp: new Date(2026, 9, 6).getTime(),
-    size: 96 * 1024
-  },
-  {
-    id: 2,
-    name: 'Brouillons',
-    type: 'folder',
-    deletedAt: '2 oct.',
-    deletedAtTimestamp: new Date(2026, 9, 2).getTime(),
-    size: null
-  },
-  {
-    id: 3,
-    name: 'scan-001.jpg',
-    type: 'file',
-    deletedAt: '20 sept.',
-    deletedAtTimestamp: new Date(2026, 8, 20).getTime(),
-    size: 3.4 * 1024 * 1024
-  }
-])
+const { getTrashItems } = useTrash()
+
+const items = ref<TrashItem[]>([])
+const isLoading = ref(true)
+const loadError = ref<string | null>(null)
 
 // État de la boîte de dialogue
 const dialogOpen = ref(false)
 const dialogAction = ref<'delete' | 'empty'>('empty')
 const selectedItem = ref<TrashItem | null>(null)
+
+async function loadTrash() {
+  isLoading.value = true
+  loadError.value = null
+
+  try {
+    items.value = await getTrashItems()
+  } catch (error) {
+    loadError.value =
+      error instanceof Error
+        ? error.message
+        : 'Impossible de charger la corbeille.'
+  } finally {
+    isLoading.value = false
+  }
+}
 
 // Demande de confirmation pour vider la corbeille
 function askEmptyTrash() {
@@ -79,6 +65,9 @@ function restoreItem(item: TrashItem) {
     currentItem => currentItem.id !== item.id
   )
 }
+
+onMounted(loadTrash)
+
 </script>
 
 <template>

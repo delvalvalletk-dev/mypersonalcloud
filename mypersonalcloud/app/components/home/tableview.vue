@@ -38,7 +38,8 @@ const emit = defineEmits<{
 
 const { downloadFile } = useFileStorage()
 const { deleteAndUnregister } = useFiles()
-const { renameFolder: saveFolderName, deleteFolder } = useFolders()
+const { renameFolder: saveFolderName } = useFolders()
+const { moveToTrash } = useTrash()
 
 type FileItem = {
   id: string
@@ -283,9 +284,9 @@ async function confirmDelete() {
   deleteError.value = ''
 
   try {
-    await deleteAndUnregister(file)
+    await moveToTrash(file.id, 'file')
 
-    deleteSuccess.value = `« ${row.name} » a été supprimé définitivement.`
+    deleteSuccess.value = `« ${row.name} » a été déplacé dans la corbeille.`
     showDeleteDialog.value = false
     fileToDelete.value = null
 
@@ -293,7 +294,7 @@ async function confirmDelete() {
   } catch (error) {
     deleteError.value = error instanceof Error
       ? error.message
-      : 'Impossible de supprimer ce fichier.'
+      : 'Impossible de déplacer ce fichier vers la corbeille.'
 
     showDeleteDialog.value = false
   } finally {

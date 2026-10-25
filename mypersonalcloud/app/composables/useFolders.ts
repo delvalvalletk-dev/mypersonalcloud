@@ -4,6 +4,7 @@ export interface StoredFolder {
   name: string
   parent_id: string | null
   created_at: string
+  deleted_at: string | null
 }
 
 export function useFolders() {
@@ -21,6 +22,7 @@ export function useFolders() {
       .from('folders')
       .select('*')
       .eq('user_id', authData.user.id)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -184,15 +186,101 @@ export function useFolders() {
       throw new Error(
         'Le dossier est introuvable ou vous ne pouvez pas le supprimer.',
       )
+    }    
+  }
+
+  async function moveFolderToTrash(folderId: string): Promise<void> {
+    const { data: authData, error: authError } =
+      await supabase.auth.getUser()
+
+    if (authError || !authData.user) {
+      throw new Error('Vous devez être connecté pour supprimer un dossier.')
+    }
+
+    // Vérifier que le dossier ne contient aucun sous-dossier actif.
+    const { data: subfolders, error: subfoldersError } = await supabase
+      .from('folders')
+      .select('id')
+      .eq('parent_id', folderId)
+      .eq('user_id', authData.user.id)
+      .is('deleted_at', null)
+      .limit(1)
+
+    if (subfoldersError) {
+      throw new Error(
+        `Impossible de vérifier les sous-dossiers : ${subfoldersError.message}`,
+      )
+    }
+
+    if (subfolders && subfolders.length > 0) {
+      throw new Error('Ce dossier contient encore des sous-dossiers.')
+    }
+
+    // Vérifier que le dossier ne contient aucun fichier actif.
+    const { data: files, error: filesError } = await supabase
+      .from('files')
+      .select('id')
+      .eq('folder_id', folderId)
+      .eq('user_id', authData.user.id)
+      .is('deleted_at', null)
+      .limit(1)
+
+    if (filesError) {
+      throw new Error(
+        `Impossible de vérifier les fichiers : ${filesError.message}`,
+      )
+    }
+
+    if (files && files.length > 0) {
+      throw new Error('Ce dossier contient encore des fichiers.')
+    }
+
+    const { data, error } = await supabase
+      .from('folders')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', folderId)
+      .eq('user_id', authData.user.id)
+      .is('deleted_at', null)
+      .select('id')
+      .single()
+
+    if (error || !data) {
+      throw new Error(
+        `Impossible de placer le dossier dans la corbeille${error ? ` : ${error.message}` : '.'}`,
+      )
     }
   }
 
+  async function restoreFolder(folderId: string): Promise<void> {
+    const { data: authData, error: authError } =
+      await supabase.auth.getUser()
 
+    if (authError || !authData.user) {
+      throw new Error('Vous devez être connecté pour restaurer un dossier.')
+    }
+
+    const { data, error } = await supabase
+      .from('folders')
+      .update({ deleted_at: null })
+      .eq('id', folderId)
+      .eq('user_id', authData.user.id)
+      .not('deleted_at', 'is', null)
+      .select('id')
+      .single()
+
+    if (error || !data) {
+      throw new Error(
+        `Impossible de restaurer le dossier${error ? ` : ${error.message}` : '.'}`,
+      )
+    }
+  }  
 
   return {
     getFolders,
     createFolder,
     renameFolder,
     deleteFolder,
+    moveFolderToTrash,
+    restoreFolder
   }
 }
