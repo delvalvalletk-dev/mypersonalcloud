@@ -18,6 +18,10 @@ const props = defineProps<{
   folderId: string | null
 }>()
 
+const emit = defineEmits<{
+  uploaded: []
+}>()
+
 function openFilePicker() {
   if (!isUploading.value) {
     fileInput.value?.click()
@@ -98,6 +102,8 @@ async function uploadSelectedFiles() {
     if (successfulFiles.length > 0) {
       successMessage.value =
         `${successfulFiles.length} fichier(s) envoyé(s) et enregistré(s) avec succès.`
+
+      emit('uploaded')  
     }
   } catch (error: unknown) {
     console.error('Erreur inattendue pendant l’upload :', error)

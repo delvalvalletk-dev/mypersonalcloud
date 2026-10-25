@@ -16,6 +16,7 @@ const props = defineProps<{
   search: string
   files: StoredFile[]
   folders: StoredFolder[]
+  currentFolderId: string | null
 }>()
 
 const emit = defineEmits<{
@@ -105,22 +106,21 @@ const columns: TableColumn<FileItem>[] = [
   { id: 'actions', header: '' },
 ]
 
-// Navigation dans l'arborescence
-const currentFolderId = ref<string | null>(null)
 const folderHistory = ref<{ id: string | null; name: string }[]>([])
 
 const currentFolderName = computed(() => {
-  if (currentFolderId.value === null) return 'Mes fichiers'
+  if (props.currentFolderId === null) return 'Mes fichiers'
 
-  return files.value.find(file => file.id === currentFolderId.value)?.name
-    ?? 'Dossier'
+  return files.value.find(
+    file => file.id === props.currentFolderId,
+  )?.name ?? 'Dossier'
 })
 
 const currentFiles = computed(() => {
   const query = props.search.trim().toLocaleLowerCase('fr')
 
   return files.value.filter(file => {
-    const isInCurrentFolder = file.parentId === currentFolderId.value
+    const isInCurrentFolder = file.parentId === props.currentFolderId
     const matchesSearch = !query
       || file.name.toLocaleLowerCase('fr').includes(query)
 
@@ -162,20 +162,24 @@ function openFolder(folder: FileItem) {
   if (folder.type !== 'folder') return
 
   folderHistory.value.push({
-    id: currentFolderId.value,
+    id: props.currentFolderId,
     name: currentFolderName.value,
   })
 
-  currentFolderId.value = folder.id
-  emit('folder-change', currentFolderId.value)
+  emit('folder-change', folder.id)
 }
 
 function goBack() {
-  const previous = folderHistory.value.pop()
+  if (props.currentFolderId === null) return
 
-  if (previous) {
-    currentFolderId.value = previous.id
-    emit('folder-change', currentFolderId.value)
+  const currentFolder = props.folders.find(
+    folder => folder.id === props.currentFolderId,
+  )
+
+  if (currentFolder) {
+    emit('folder-change', currentFolder.parent_id)
+  } else {
+    emit('folder-change', null)
   }
 }
 
@@ -291,7 +295,7 @@ async function confirmDelete() {
     <!-- Navigation dans l'arborescence -->
     <div class="flex flex-wrap items-center gap-2">
       <UButton
-        v-if="currentFolderId !== null"
+        v-if="props.currentFolderId !== null"
         icon="i-lucide-arrow-left"
         color="neutral"
         variant="ghost"
@@ -349,6 +353,7 @@ async function confirmDelete() {
           td: 'px-4 py-3.5 text-sm',
           tr: 'transition-colors hover:bg-elevated/50'
         }"
+        empty="Ce dossier est vide."
       >
         <template #name-header>
           <button
@@ -497,13 +502,6 @@ async function confirmDelete() {
           </div>
         </template>
       </UModal>
-
-      <div
-        v-if="sortedFiles.length === 0"
-        class="px-4 py-10 text-center text-sm text-muted"
-      >
-        Ce dossier est vide.
-      </div>
     </div>
   </div>
 </template>

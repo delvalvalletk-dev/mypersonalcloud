@@ -50,6 +50,10 @@ async function loadItems() {
   }
 }
 
+async function refreshItems() {
+  await loadItems()
+}
+
 onMounted(loadItems)
 
 function openCreateFolder() {
@@ -128,7 +132,7 @@ async function handleFileDeleted() {
     <section aria-label="Ajouter des fichiers">
       <DropZone
         :folder-id="currentFolderId"
-        @uploaded="loadItems"
+        @uploaded="refreshItems"
       />
     </section>
 
@@ -223,7 +227,9 @@ async function handleFileDeleted() {
         :search="search"
         :files="files"
         :folders="folders"
+        :current-folder-id="currentFolderId"
         @folder-change="currentFolderId = $event"
+        @file-deleted="refreshItems"
       />
     </section>
 
