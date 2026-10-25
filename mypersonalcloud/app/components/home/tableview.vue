@@ -12,6 +12,12 @@ const showDeleteDialog = ref(false)
 const fileToDelete = ref<FileItem | null>(null)
 const deleteSuccess = ref('')
 
+const showRenameDialog = ref(false)
+const folderToRename = ref<FileItem | null>(null)
+const newFolderName = ref('')
+const isRenamingFolder = ref(false)
+const renameError = ref('')
+
 const props = defineProps<{
   search: string
   files: StoredFile[]
@@ -20,12 +26,14 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'folder-change': [folderId: string | null],
+  'folder-change': [folderId: string | null]
   'file-deleted': []
+  'items-changed': []
 }>()
 
 const { downloadFile } = useFileStorage()
 const { deleteAndUnregister } = useFiles()
+const { renameFolder: saveFolderName } = useFolders()
 
 type FileItem = {
   id: string
@@ -288,6 +296,38 @@ async function confirmDelete() {
   }
 }
 
+function requestRename(folder: FileItem) {
+  renameError.value = ''
+  folderToRename.value = folder
+  newFolderName.value = folder.name
+  showRenameDialog.value = true
+}
+
+async function renameFolder() {
+  const folder = folderToRename.value
+  const name = newFolderName.value.trim()
+
+  if (!folder || !name || isRenamingFolder.value) return
+
+  isRenamingFolder.value = true
+  renameError.value = ''
+
+  try {
+    await saveFolderName(folder.id, name)
+
+    showRenameDialog.value = false
+    folderToRename.value = null
+
+    emit('items-changed')
+  } catch (error) {
+    renameError.value = error instanceof Error
+      ? error.message
+      : 'Impossible de renommer le dossier.'
+  } finally {
+    isRenamingFolder.value = false
+  }
+}
+
 </script>
 
 <template>
@@ -453,6 +493,14 @@ async function confirmDelete() {
               :disabled="downloadingId !== null || deletingId !== null"
               @click.stop="requestDelete(row.original)"
             />
+            <UButton
+              v-if="row.original.type === 'folder'"
+              icon="i-lucide-pencil"
+              variant="ghost"
+              color="neutral"
+              aria-label="Renommer le dossier"
+              @click="requestRename(row.original)"
+            />
           </div>
         </template>
       </UTable>
@@ -497,6 +545,50 @@ async function confirmDelete() {
                 @click="confirmDelete"
               >
                 Supprimer définitivement
+              </UButton>
+            </div>
+          </div>
+        </template>
+      </UModal>
+
+      <UModal v-model:open="showRenameDialog">
+        <template #content>
+          <div class="space-y-4 p-4">
+            <h2 class="text-lg font-semibold">Renommer le dossier</h2>
+          
+            <UFormField label="Nouveau nom" name="folderName">
+              <UInput
+                v-model="newFolderName"
+                autofocus
+                class="w-full"
+                placeholder="Nom du dossier"
+                @keydown.enter="renameFolder"
+              />
+            </UFormField>
+          
+            <UAlert
+              v-if="renameError"
+              color="error"
+              variant="soft"
+              :description="renameError"
+            />
+          
+            <div class="flex justify-end gap-2">
+              <UButton
+                color="neutral"
+                variant="outline"
+                :disabled="isRenamingFolder"
+                @click="showRenameDialog = false"
+              >
+                Annuler
+              </UButton>
+            
+              <UButton
+                :loading="isRenamingFolder"
+                :disabled="!newFolderName.trim()"
+                @click="renameFolder"
+              >
+                Renommer
               </UButton>
             </div>
           </div>

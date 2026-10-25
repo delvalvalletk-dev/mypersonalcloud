@@ -230,6 +230,7 @@ async function handleFileDeleted() {
         :current-folder-id="currentFolderId"
         @folder-change="currentFolderId = $event"
         @file-deleted="refreshItems"
+        @items-changed="refreshItems"
       />
     </section>
 
