@@ -5,6 +5,8 @@ import type { TableColumn } from '@nuxt/ui'
 import type { StoredFile } from '~/composables/useFiles'
 import type { StoredFolder } from '~/composables/useFolders'
 
+import { useTrash } from '~/composables/useTrash'
+
 const downloadingId = ref<string | null>(null)
 const deletingId = ref<string | null>(null)
 const deleteError = ref('')
@@ -37,8 +39,8 @@ const emit = defineEmits<{
 }>()
 
 const { downloadFile } = useFileStorage()
-const { deleteAndUnregister } = useFiles()
-const { renameFolder: saveFolderName, deleteFolder } = useFolders()
+const { renameFolder: saveFolderName } = useFolders()
+const { moveToTrash } = useTrash()
 
 type FileItem = {
   id: string
@@ -271,21 +273,13 @@ async function confirmDelete() {
     return
   }
 
-  const file = props.files.find(item => item.id === row.id)
-
-  if (!file) {
-    deleteError.value = 'Fichier introuvable.'
-    showDeleteDialog.value = false
-    return
-  }
-
   deletingId.value = row.id
   deleteError.value = ''
 
   try {
-    await deleteAndUnregister(file)
+    await moveToTrash(row.id, 'file')
 
-    deleteSuccess.value = `« ${row.name} » a été supprimé définitivement.`
+    deleteSuccess.value = `« ${row.name} » a été déplacé dans la corbeille.`
     showDeleteDialog.value = false
     fileToDelete.value = null
 
@@ -293,7 +287,7 @@ async function confirmDelete() {
   } catch (error) {
     deleteError.value = error instanceof Error
       ? error.message
-      : 'Impossible de supprimer ce fichier.'
+      : 'Impossible de déplacer ce fichier vers la corbeille.'
 
     showDeleteDialog.value = false
   } finally {
@@ -355,7 +349,7 @@ async function confirmDeleteFolder() {
   deleteFolderError.value = ''
 
   try {
-    await deleteFolder(folder.id)
+    await moveToTrash(folder.id, 'folder')
 
     showDeleteFolderDialog.value = false
     folderToDelete.value = null
@@ -364,7 +358,7 @@ async function confirmDeleteFolder() {
   } catch (error) {
     deleteFolderError.value = error instanceof Error
       ? error.message
-      : 'Impossible de supprimer le dossier.'
+      : 'Impossible de déplacer le dossier vers la corbeille.'
   } finally {
     deletingFolderId.value = null
   }
@@ -653,9 +647,11 @@ async function confirmDeleteFolder() {
             </h2>
           
             <p class="text-sm text-muted">
-              Voulez-vous vraiment supprimer le dossier
-              <strong>{{ folderToDelete?.name }}</strong> ?
-              Cette action est définitive. Le dossier doit être vide.
+              Voulez-vous vraiment déplacer le dossier
+              <strong>{{ folderToDelete?.name }}</strong>
+              dans la corbeille ?
+            
+              Son contenu sera conservé et redeviendra accessible lorsque vous restaurerez le dossier.
             </p>
           
             <UAlert
@@ -681,7 +677,7 @@ async function confirmDeleteFolder() {
                 :disabled="deletingFolderId !== null"
                 @click="confirmDeleteFolder"
               >
-                Supprimer définitivement
+                Déplacer vers la corbeille
               </UButton>
             </div>
           </div>
