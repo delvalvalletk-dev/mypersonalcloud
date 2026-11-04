@@ -39,10 +39,6 @@ const emit = defineEmits<{
 }>()
 
 const { downloadFile } = useFileStorage()
-<<<<<<< HEAD
-const { deleteAndUnregister } = useFiles()
-=======
->>>>>>> pages/home
 const { renameFolder: saveFolderName } = useFolders()
 const { moveToTrash } = useTrash()
 
@@ -405,7 +401,7 @@ async function confirmDeleteFolder() {
           color="success"
           variant="subtle"
           icon="i-lucide-check-circle"
-          title="Fichier supprimé"
+          title="Fichier déplacé dans la corbeille"
           :description="deleteSuccess"
           close
           @update:open="deleteSuccess = ''"
@@ -546,7 +542,7 @@ async function confirmDeleteFolder() {
               icon="i-lucide-trash-2"
               color="error"
               variant="ghost"
-              aria-label="Supprimer le dossier"
+              aria-label="Déplacer le dossier vers la corbeille"
               :disabled="deletingFolderId !== null"
               @click="requestDeleteFolder(row.original)"
             />
@@ -564,7 +560,7 @@ async function confirmDeleteFolder() {
             
               <div class="min-w-0 flex-1">
                 <h2 class="text-base font-semibold text-highlighted">
-                  Supprimer ce fichier ?
+                  Déplacer ce fichier vers la corbeille ?
                 </h2>
                 <p class="mt-1 break-words text-sm text-muted">
                   {{ fileToDelete?.name }}
@@ -573,7 +569,7 @@ async function confirmDeleteFolder() {
             </div>
           
             <p class="mt-4 text-sm text-muted">
-              Cette action est définitive. Le fichier et ses données associées seront supprimés.
+              Le fichier sera déplacé dans la corbeille. Vous pourrez le restaurer ultérieurement.
             </p>
           
             <div class="mt-6 flex justify-end gap-2">
@@ -593,7 +589,7 @@ async function confirmDeleteFolder() {
                 :disabled="deletingId !== null"
                 @click="confirmDelete"
               >
-                Supprimer définitivement
+                Déplacer vers la corbeille
               </UButton>
             </div>
           </div>
