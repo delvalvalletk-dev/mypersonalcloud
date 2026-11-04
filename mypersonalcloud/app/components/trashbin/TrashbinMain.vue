@@ -4,7 +4,7 @@ import TrashConfirmDialog from './TrashConfirmDialog.vue'
 
 import { useTrash, type TrashItem } from '~/composables/useTrash'
 
-const { getTrashItems } = useTrash()
+const { getTrashItems, restoreItem: restoreFromTrash } = useTrash()
 
 const items = ref<TrashItem[]>([])
 const isLoading = ref(true)
@@ -14,6 +14,11 @@ const loadError = ref<string | null>(null)
 const dialogOpen = ref(false)
 const dialogAction = ref<'delete' | 'empty'>('empty')
 const selectedItem = ref<TrashItem | null>(null)
+
+const restoreDialogOpen = ref(false)
+const restoreSuccess = ref(false)
+const restoredItemName = ref('')
+const restoreError = ref('')
 
 async function loadTrash() {
   isLoading.value = true
@@ -59,11 +64,27 @@ function confirmAction() {
   selectedItem.value = null
 }
 
-// Restauration simulée
-function restoreItem(item: TrashItem) {
-  items.value = items.value.filter(
-    currentItem => currentItem.id !== item.id
-  )
+async function restoreItem(item: TrashItem) {
+  restoreSuccess.value = false
+  restoreError.value = ''
+  restoredItemName.value = item.name
+
+  try {
+    await restoreFromTrash(item.id, item.type)
+
+    restoreSuccess.value = true
+
+    items.value = items.value.filter(
+      currentItem => currentItem.id !== item.id
+    )
+  } catch (error) {
+    restoreSuccess.value = false
+    restoreError.value = error instanceof Error
+      ? error.message
+      : 'Impossible de restaurer cet élément.'
+  } finally {
+    restoreDialogOpen.value = true
+  }
 }
 
 onMounted(loadTrash)
@@ -88,6 +109,13 @@ onMounted(loadTrash)
       :item-name="selectedItem?.name"
       :item-count="items.length"
       @confirm="confirmAction"
+    />
+
+    <TrashRestoreDialog
+      v-model:open="restoreDialogOpen"
+      :success="restoreSuccess"
+      :item-name="restoredItemName"
+      :error-message="restoreError"
     />
   </div>
 </template>

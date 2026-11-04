@@ -118,8 +118,44 @@ export function useTrash() {
     }
   }
 
+  async function restoreItem(
+    id: string,
+    type: 'file' | 'folder',
+  ): Promise<void> {
+    const table = type === 'file' ? 'files' : 'folders'
+
+    const { data: authData, error: authError } =
+      await supabase.auth.getUser()
+
+    if (authError || !authData.user) {
+      throw new Error(
+        'Vous devez être connecté pour restaurer cet élément.',
+      )
+    }
+
+    const { data, error } = await supabase
+      .from(table)
+      .update({ deleted_at: null })
+      .eq('id', id)
+      .eq('user_id', authData.user.id)
+      .select('id')
+
+    if (error) {
+      throw new Error(
+        `Impossible de restaurer l'élément : ${error.message}`,
+      )
+    }
+
+    if (!data || data.length === 0) {
+      throw new Error(
+        "L'élément est introuvable ou vous ne pouvez pas le restaurer.",
+      )
+    }
+  }
+
   return {
     getTrashItems,
-    moveToTrash
+    moveToTrash,
+    restoreItem
   }
 }
