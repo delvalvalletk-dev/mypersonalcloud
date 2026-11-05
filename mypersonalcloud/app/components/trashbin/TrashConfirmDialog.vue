@@ -1,4 +1,7 @@
+
 <script setup lang="ts">
+import { computed } from 'vue'
+
 type DialogAction = 'delete' | 'empty'
 
 const props = defineProps<{
@@ -6,6 +9,8 @@ const props = defineProps<{
   action: DialogAction
   itemName?: string
   itemCount?: number
+  loading?: boolean
+  errorMessage?: string
 }>()
 
 const emit = defineEmits<{
@@ -28,12 +33,13 @@ const description = computed(() => {
 })
 
 function cancel() {
+  if (props.loading) return
   emit('update:open', false)
 }
 
 function confirm() {
+  if (props.loading) return
   emit('confirm')
-  emit('update:open', false)
 }
 </script>
 
@@ -42,26 +48,38 @@ function confirm() {
     :open="open"
     :title="title"
     :description="description"
+    :dismissible="!loading"
     :ui="{ footer: 'justify-end gap-2' }"
-    @update:open="emit('update:open', $event)"
+    @update:open="!loading && emit('update:open', $event)"
   >
     <template #body>
-      <div class="flex items-start gap-3">
-        <div
-          class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-error/10 text-error"
-        >
-          <UIcon name="i-lucide-alert-triangle" class="size-5" />
+      <div class="space-y-4">
+        <div class="flex items-start gap-3">
+          <div
+            class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-error/10 text-error"
+          >
+            <UIcon name="i-lucide-alert-triangle" class="size-5" />
+          </div>
+
+          <div class="min-w-0 space-y-1">
+            <p class="text-sm font-medium text-default">
+              {{ title }}
+            </p>
+
+            <p class="text-sm text-muted">
+              {{ description }}
+            </p>
+          </div>
         </div>
 
-        <div class="min-w-0 space-y-1">
-          <p class="text-sm font-medium text-default">
-            {{ title }}
-          </p>
-
-          <p class="text-sm text-muted">
-            {{ description }}
-          </p>
-        </div>
+        <UAlert
+          v-if="errorMessage"
+          color="error"
+          variant="subtle"
+          icon="i-lucide-alert-circle"
+          title="La suppression a échoué"
+          :description="errorMessage"
+        />
       </div>
     </template>
 
@@ -70,12 +88,15 @@ function confirm() {
         label="Annuler"
         color="neutral"
         variant="outline"
+        :disabled="loading"
         @click="cancel"
       />
 
       <UButton
         :label="action === 'empty' ? 'Vider la corbeille' : 'Supprimer définitivement'"
         color="error"
+        :loading="loading"
+        :disabled="loading"
         @click="confirm"
       />
     </template>
